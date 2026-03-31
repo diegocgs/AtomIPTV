@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://iptv-samsung.local/app"
+        version="1.0.0"
+        viewmodes="maximized">
+  <name>IPTV Samsung</name>
+  <description>Cliente IPTV para Samsung Smart TV (AVPlay, rede, Live TV).</description>
+  <author href="https://github.com/">IPTV Samsung</author>
+  <icon src="icon.png"/>
+  <content src="index.html"/>
+  <access origin="*" subdomains="true"/>
+
+  <feature name="http://tizen.org/feature/screen.size.all"/>
+
+  <!-- Perfil Samsung TV -->
+  <tizen:profile name="tv-samsung"/>
+
+  <!-- Identificador da aplicação (ajuste ao criar o certificado / publicar na loja) -->
+  <!--
+    IMPORTANTE (Tizen): `package` tem de ter 10 chars alfanuméricos e `id` tem de ser
+    `<package>.<appId>` onde ambos têm 10 chars alfanuméricos.
+    Quando criares o certificado/perfil no Tizen Studio, substitui pelos valores reais.
+  -->
+  <tizen:application id="iptvsam01a.iptvsam01b"
+                     package="iptvsam01a"
+                     required_version="5.5"/>
+
+  <!-- Rede e streams remotos -->
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+
+  <!-- Samsung AVPlay (playback nativo) -->
+  <tizen:privilege name="http://developer.samsung.com/privilege/avplay"/>
+
+  <!-- Metadados de ecrã / TV -->
+  <tizen:metadata key="http://samsung.com/tv/metadata/use.preview" value="true"/>
+
+  <!-- CSP permissivo para streams e APIs remotas (restringir em produção se necessário) -->
+  <tizen:metadata key="http://tizen.org/metadata/app-csp"
+                  value="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; media-src * blob: data:; connect-src *; frame-src *; child-src *; font-src * data:;"/>
+
+  <tizen:setting screen-orientation="landscape"
+                 context-menu="enable"
+                 background-support="disable"
+                 encryption="disable"
+                 install-location="auto"
+                 hwkey-event="enable"/>
+</widget>

@@ -1,0 +1,90 @@
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #020617;
+  color: #e2e8f0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 20% 20%, #0f172a 0, #020617 65%);
+}
+
+.shell__frame {
+  border: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.shell__frame--hidden {
+  visibility: hidden;
+}
+
+.shell__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.72), rgba(2, 6, 23, 0.92));
+}
+
+.shell__overlay--hidden {
+  display: none;
+}
+
+.shell__logo {
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+.shell__status {
+  font-size: 22px;
+  color: #cbd5e1;
+}
+
+.shell__status--error {
+  color: #fecaca;
+}
+
+.shell__detail {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 18px;
+}
+
+.shell__spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 4px solid rgba(148, 163, 184, 0.35);
+  border-top-color: #60a5fa;
+  animation: spin 0.95s linear infinite;
+}
+
+.shell__btn {
+  margin-top: 6px;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 10px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.9);
+  padding: 12px 24px;
+  font-size: 20px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920,height=1080,initial-scale=1.0,user-scalable=no" />
+    <title>IPTV Samsung</title>
+    <link rel="stylesheet" href="./shell.css" />
+  </head>
+  <body>
+    <div id="shell-root" class="shell">
+      <div id="shell-loading" class="shell__overlay">
+        <div class="shell__logo">IPTV Samsung</div>
+        <div id="shell-status" class="shell__status">A iniciar...</div>
+        <div class="shell__spinner" aria-hidden="true"></div>
+      </div>
+
+      <div id="shell-error" class="shell__overlay shell__overlay--hidden" aria-live="polite">
+        <div class="shell__logo">IPTV Samsung</div>
+        <div class="shell__status shell__status--error">Nao foi possivel carregar a app.</div>
+        <p id="shell-error-detail" class="shell__detail">Verifique a ligacao de rede e tente novamente.</p>
+        <button id="shell-retry" class="shell__btn" type="button">Tentar novamente</button>
+      </div>
+
+      <iframe
+        id="shell-app-frame"
+        class="shell__frame shell__frame--hidden"
+        title="IPTV Samsung Hosted App"
+        tabindex="0"
+        referrerpolicy="no-referrer-when-downgrade"
+        allow="autoplay; fullscreen"
+      ></iframe>
+    </div>
+
+    <script src="./runtime-config.js"></script>
+    <script src="./shell.js"></script>
+  </body>
+</html>
