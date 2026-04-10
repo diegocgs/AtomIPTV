@@ -10,6 +10,10 @@ export {
   mergeNeighborMaps,
   withMainLeftToSidebar,
 } from './buildMaps'
+export {
+  buildLiveTvShellOnlyPlan,
+  buildVodCatalogShellPlan,
+} from './buildLiveTvShellOnlyPlan'
 export { TvFocusProvider } from './TvFocusProvider'
 export { useTvFocus } from './useTvFocus'
 export { FocusPlan } from './FocusPlan'

@@ -20,26 +20,35 @@ export function isSamsungTizenLikeRuntime(): boolean {
   return isEmbeddedInTizenShell()
 }
 
+function isTypingElement(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false
+  if (el.isContentEditable) return true
+  const tag = el.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+  return false
+}
+
 /**
  * Tecla Back / Return do comando Samsung e Tizen (não é Escape em muitos modelos).
+ * `Backspace` no Mac/PC é apagar texto — só contamos como “voltar” fora de campos de edição e em runtime TV.
  * @see https://developer.samsung.com/smarttv/develop/guides/legacy/tizen-key-names
  */
 export function isRemoteBackKey(e: KeyboardEvent): boolean {
   const k = e.key
-  if (
-    k === 'Escape' ||
-    k === 'Backspace' ||
-    k === 'Back' ||
-    k === 'XF86Back' ||
-    k === 'BrowserBack'
-  ) {
-    return true
+  const c = e.keyCode ?? (e as KeyboardEvent & { which?: number }).which ?? 0
+
+  if (k === 'Escape' || c === 27) return true
+
+  if (k === 'Back' || k === 'XF86Back' || k === 'BrowserBack') return true
+  if (c === 10009 || c === 461) return true
+
+  if (k === 'Backspace' || c === 8) {
+    if (isTypingElement(e.target) || isTypingElement(typeof document !== 'undefined' ? document.activeElement : null)) {
+      return false
+    }
+    return isSamsungTizenLikeRuntime()
   }
-  const c = e.keyCode
-  if (c === 10009) return true
-  if (c === 461) return true
-  if (c === 27) return true
-  if (c === 8) return true
+
   return false
 }
 

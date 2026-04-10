@@ -4,36 +4,58 @@ const SB = (i: number) => `sb-${i}`
 
 /** IDs do `HomeChromeHeader` (Home e rotas internas — mesmo componente). */
 export const APP_HDR = {
-  logo: 'hdr-logo',
   profile: 'hdr-profile',
+  settings: 'hdr-settings',
   power: 'hdr-power',
 } as const
 
 /**
- * Cabeçalho cromado: Logo · Perfil · Power (igual à Home).
+ * Cabeçalho cromado: Logo · Perfil · Definições · Power.
  * Seta para baixo em qualquer um entra em `mainEntryDown` (primeiro foco da página).
  */
 export function buildAppTopBar(mainEntryDown: string): TvNeighborMap {
-  const { logo, profile, power } = APP_HDR
+  const { profile, settings, power } = APP_HDR
   return {
-    [logo]: {
+    [profile]: {
       left: undefined,
-      right: profile,
+      right: settings,
       down: mainEntryDown,
       up: undefined,
     },
-    [profile]: {
-      left: logo,
+    [settings]: {
+      left: profile,
       right: power,
       down: mainEntryDown,
       up: undefined,
     },
     [power]: {
-      left: profile,
+      left: settings,
       right: undefined,
       down: mainEntryDown,
       up: undefined,
     },
+  }
+}
+
+/**
+ * Movies/Series: logo continua a descer para o primeiro foco da página (`shellMainFocusId`);
+ * perfil / definições / power descem para a search da grelha (à direita), como no layout.
+ */
+export function buildVodCatalogHeaderNeighbors(
+  shellMainFocusId: string,
+  gridSearchId: string,
+): TvNeighborMap {
+  const base = buildAppTopBar(shellMainFocusId)
+  const { profile, settings, power } = APP_HDR
+  const p = base[profile]
+  const s = base[settings]
+  const pw = base[power]
+  if (!p || !s || !pw) return base
+  return {
+    ...base,
+    [profile]: { ...p, down: gridSearchId },
+    [settings]: { ...s, down: gridSearchId },
+    [power]: { ...pw, down: gridSearchId },
   }
 }
 

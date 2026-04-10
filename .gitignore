@@ -7,12 +7,22 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+.ref-nexus-vision-prime
+
 node_modules
+build
 dist
 dist-ssr
 tizen/out
 *.wgt
 *.local
+
+# Environment files with credentials/IPs
+.env
+.env.*
+
+# Backups
+backups/
 
 # Editor directories and files
 .vscode/*

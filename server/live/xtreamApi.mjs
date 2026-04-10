@@ -42,3 +42,51 @@ export async function xtreamGetLiveStreams(baseUrl, username, password) {
   }
   return data
 }
+
+export async function xtreamGetVodCategories(baseUrl, username, password) {
+  const url = buildPlayerApiUrl(baseUrl, username, password, 'get_vod_categories')
+  const data = await xtreamFetchJson(url)
+  if (!Array.isArray(data)) {
+    throw new Error('get_vod_categories: invalid response')
+  }
+  return data
+}
+
+export async function xtreamGetVodStreams(baseUrl, username, password) {
+  const url = buildPlayerApiUrl(baseUrl, username, password, 'get_vod_streams')
+  const data = await xtreamFetchJson(url)
+  if (!Array.isArray(data)) {
+    throw new Error('get_vod_streams: invalid response')
+  }
+  return data
+}
+
+export async function xtreamGetSeriesCategories(baseUrl, username, password) {
+  const url = buildPlayerApiUrl(baseUrl, username, password, 'get_series_categories')
+  const data = await xtreamFetchJson(url)
+  if (!Array.isArray(data)) {
+    throw new Error('get_series_categories: invalid response')
+  }
+  return data
+}
+
+export async function xtreamGetSeries(baseUrl, username, password) {
+  const url = buildPlayerApiUrl(baseUrl, username, password, 'get_series')
+  const data = await xtreamFetchJson(url)
+  if (!Array.isArray(data)) {
+    throw new Error('get_series: invalid response')
+  }
+  return data
+}
+
+export async function xtreamGetVodInfo(baseUrl, username, password, vodId) {
+  const base = buildPlayerApiUrl(baseUrl, username, password, 'get_vod_info')
+  const url = `${base}&vod_id=${encodeURIComponent(String(vodId))}`
+  return xtreamFetchJson(url)
+}
+
+export async function xtreamGetSeriesInfo(baseUrl, username, password, seriesId) {
+  const base = buildPlayerApiUrl(baseUrl, username, password, 'get_series_info')
+  const url = `${base}&series_id=${encodeURIComponent(String(seriesId))}`
+  return xtreamFetchJson(url)
+}

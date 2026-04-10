@@ -35,7 +35,7 @@ export function buildLiveTvLegacyFocusPlan(
       ? Math.min(parseInt(chMatch?.[1] ?? '0', 10), channelCount - 1)
       : 0
 
-  const logoLeft = APP_HDR.logo
+  const logoLeft = APP_HDR.profile
 
   const leftFromPreview =
     channelCount > 0 ? `lch-${chIdx}` : categoryCount > 0 ? `lcat-${catIdx}` : logoLeft

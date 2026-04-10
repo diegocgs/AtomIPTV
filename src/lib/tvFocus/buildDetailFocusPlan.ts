@@ -3,11 +3,11 @@ import type { TvFocusPlan, TvNeighborMap } from './types'
 
 /** Detalhe: barra superior + voltar / ações; esquerda volta ao logo (home). */
 export function buildDetailFocusPlan(): TvFocusPlan {
-  const back = APP_HDR.logo
+  const back = APP_HDR.profile
   const shell = buildAppTopBar('det-back')
   const neighbors: TvNeighborMap = mergeNeighborMaps(shell, {
     'det-back': {
-      up: APP_HDR.logo,
+      up: APP_HDR.profile,
       down: 'det-primary',
       left: back,
       right: undefined,

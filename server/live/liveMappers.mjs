@@ -6,16 +6,16 @@ export function encodeCategoryIdFromGroup(name) {
 }
 
 export function buildM3uCategoriesFromGroups(groupNames, hasUncategorized) {
-  const sorted = [...new Set(groupNames.filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const ordered = [...new Set(groupNames.filter(Boolean))]
   const out = [{ id: LIVE_ALL_CATEGORY_ID, name: 'Todos', order: 0 }]
-  sorted.forEach((name, i) => {
+  ordered.forEach((name, i) => {
     out.push({ id: encodeCategoryIdFromGroup(name), name, order: i + 1 })
   })
   if (hasUncategorized) {
     out.push({
       id: LIVE_UNCATEGORIZED_ID,
       name: 'Uncategorized',
-      order: sorted.length + 1,
+      order: ordered.length + 1,
     })
   }
   return dedupeCategories(out)

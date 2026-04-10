@@ -1,12 +1,14 @@
-import { Suspense, lazy, useCallback } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { TvFocusProvider } from '@/lib/tvFocus'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { ExitConfirmDialog } from '@/components/ExitConfirmDialog'
 import { SplashPage } from '@/pages/SplashPage'
 import { HomePage } from '@/pages/HomePage'
 const LiveTvPage = lazy(() => import('@/pages/LiveTvPage').then((m) => ({ default: m.LiveTvPage })))
-const MoviesPage = lazy(() => import('@/pages/MoviesPage').then((m) => ({ default: m.MoviesPage })))
-const SeriesPage = lazy(() => import('@/pages/SeriesPage').then((m) => ({ default: m.SeriesPage })))
+const MoviesPage = lazy(() => import('@/pages/MoviesPage'))
+const SeriesPage = lazy(() => import('@/pages/SeriesPage'))
 const PlaylistsPage = lazy(() => import('@/pages/PlaylistsPage').then((m) => ({ default: m.PlaylistsPage })))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const DetailPage = lazy(() => import('@/pages/DetailPage').then((m) => ({ default: m.DetailPage })))
@@ -15,42 +17,60 @@ const PlayerPage = lazy(() => import('@/features/player').then((m) => ({ default
 function FocusedRoutes() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [showExitDialog, setShowExitDialog] = useState(false)
+
+  const playerReturnTo =
+    location.pathname === '/player' &&
+    location.state &&
+    typeof location.state === 'object' &&
+    typeof (location.state as { returnTo?: unknown }).returnTo === 'string'
+      ? (location.state as { returnTo: string }).returnTo
+      : '/home'
 
   const onBack = useCallback(() => {
     if (location.pathname === '/player') {
-      navigate(-1)
+      navigate(playerReturnTo, { replace: true })
       return
     }
     if (location.pathname.startsWith('/details')) {
       navigate(-1)
       return
     }
-    if (
-      location.pathname !== '/home' &&
-      location.pathname !== '/' &&
-      !location.pathname.startsWith('/details')
-    ) {
-      navigate('/home')
+    if (location.pathname === '/home' || location.pathname === '/') {
+      setShowExitDialog(true)
+      return
     }
-  }, [location.pathname, navigate])
+    navigate('/home')
+  }, [location.pathname, navigate, playerReturnTo])
+
+  useEffect(() => {
+    function onRequestExit() {
+      setShowExitDialog(true)
+    }
+    window.addEventListener('tv-request-exit', onRequestExit)
+    return () => window.removeEventListener('tv-request-exit', onRequestExit)
+  }, [])
 
   return (
     <TvFocusProvider onBack={onBack}>
-      <Suspense fallback={<div style={{ background: '#020617', width: '100vw', height: '100vh' }} />}>
-        <Routes>
-          <Route path="/" element={<SplashPage />} />
-          <Route path="/player" element={<PlayerPage />} />
-          <Route element={<AppShell />}>
-            <Route path="/home" element={<HomePage />} />
-            <Route path="/live" element={<LiveTvPage />} />
-            <Route path="/movies" element={<MoviesPage />} />
-            <Route path="/series" element={<SeriesPage />} />
-            <Route path="/playlists" element={<PlaylistsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/details/:type/:id" element={<DetailPage />} />
-          </Route>
-        </Routes>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<div style={{ background: '#020617', width: '100vw', height: '100vh' }} />}>
+          <Routes>
+            <Route path="/" element={<SplashPage />} />
+            <Route path="/player" element={<PlayerPage />} />
+            <Route element={<AppShell />}>
+              <Route path="/home" element={<HomePage />} />
+              <Route path="/movies" element={<MoviesPage />} />
+              <Route path="/series" element={<SeriesPage />} />
+              <Route path="/live" element={<LiveTvPage />} />
+              <Route path="/playlists" element={<PlaylistsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/details/:type/:id" element={<DetailPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
+        {showExitDialog && <ExitConfirmDialog onClose={() => setShowExitDialog(false)} />}
+      </ErrorBoundary>
     </TvFocusProvider>
   )
 }

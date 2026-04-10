@@ -32,6 +32,7 @@ export interface TizenAvplay {
   getState(): string
   setListener(listener: AvplayListener): void
   setDisplayRect(x: number, y: number, width: number, height: number): void
+  setDisplayType?(type: string): void
   setDisplayMethod?(method: string): void
   setStreamingProperty?(property: string, value: string): void
 }

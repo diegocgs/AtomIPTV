@@ -1,8 +1,14 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
+import { resolvePlaybackUrl } from '@/lib/hlsDevProxy'
 import { normalizeLiveStreamUrl } from '@/utils/normalizeLiveStreamUrl'
-import { createPlaybackEngine, resolvePlaybackEngineKind } from '../engines/playbackEngine'
+import { isAutoplayPolicyError } from '../autoplayPolicy'
+import {
+  createPlaybackEngine,
+  resolvePreferredPlaybackEngineKind,
+} from '../engines/playbackEngine'
 import type { PlaybackEngine, PlayerControllerState } from '../types/player'
+import type { PlaybackEngineKind } from '../types/player'
 import { playerSession } from '../services/playerSession'
 
 type UsePlayerControllerOptions = {
@@ -11,6 +17,20 @@ type UsePlayerControllerOptions = {
   title?: string
   contentRef?: string
   autoPlay?: boolean
+  preferredEngine?: PlaybackEngineKind | null
+  startMuted?: boolean
+}
+
+const PROGRESSIVE_VIDEO = /\.(mp4|mkv|avi|mov|webm|wmv)(\?|#|$)/i
+
+function resolvePlayerStreamUrl(streamUrl: string): string {
+  const trimmed = streamUrl.trim()
+  if (!trimmed) return trimmed
+  const pathOnly = (trimmed.split('?')[0] ?? '').toLowerCase()
+  if (PROGRESSIVE_VIDEO.test(pathOnly)) {
+    return resolvePlaybackUrl(trimmed)
+  }
+  return normalizeLiveStreamUrl(trimmed)
 }
 
 /**
@@ -22,9 +42,14 @@ export function usePlayerController({
   title,
   contentRef,
   autoPlay = true,
+  preferredEngine = null,
+  startMuted = false,
 }: UsePlayerControllerOptions) {
   const engineRef = useRef<PlaybackEngine | null>(null)
-  const kind = useMemo(() => resolvePlaybackEngineKind(), [])
+  const kind = useMemo(
+    () => resolvePreferredPlaybackEngineKind(preferredEngine),
+    [preferredEngine],
+  )
 
   const [state, setState] = useState<PlayerControllerState>(() => ({
     engineKind: kind,
@@ -106,13 +131,18 @@ export function usePlayerController({
       return
     }
 
-    const playbackUrl = normalizeLiveStreamUrl(streamUrl)
+    const playbackUrl = resolvePlayerStreamUrl(streamUrl)
     playerSession.begin({ streamUrl: playbackUrl, title, contentRef })
 
     let removeHtml5Listeners: (() => void) | undefined
     if (kind === 'html5') {
       const video = container.querySelector('video')
       if (video) {
+        if (startMuted) {
+          video.muted = true
+          video.defaultMuted = true
+          video.volume = 0
+        }
         removeHtml5Listeners = bindHtml5Events(video)
       }
     }
@@ -147,6 +177,15 @@ export function usePlayerController({
           }))
         })
         .catch((e: unknown) => {
+          if (isAutoplayPolicyError(e)) {
+            setState((s) => ({
+              ...s,
+              error: null,
+              isPlaying: false,
+              isBuffering: false,
+            }))
+            return
+          }
           const msg = e instanceof Error ? e.message : String(e)
           setState((s) => ({
             ...s,
@@ -165,7 +204,7 @@ export function usePlayerController({
       engineRef.current = null
       playerSession.end()
     }
-  }, [streamUrl, kind, autoPlay, title, contentRef, containerRef, bindHtml5Events])
+  }, [streamUrl, kind, autoPlay, title, contentRef, containerRef, bindHtml5Events, startMuted])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const displayError = !streamUrl ? 'URL em falta.' : state.error
@@ -176,6 +215,10 @@ export function usePlayerController({
     void Promise.resolve(engine.play())
       .then(() => setState((s) => ({ ...s, isPlaying: true, error: null })))
       .catch((e: unknown) => {
+        if (isAutoplayPolicyError(e)) {
+          setState((s) => ({ ...s, error: null }))
+          return
+        }
         const msg = e instanceof Error ? e.message : String(e)
         setState((s) => ({ ...s, error: msg }))
       })

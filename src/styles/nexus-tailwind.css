@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 220 20% 6%;
+  --foreground: 210 40% 96%;
+  --card: 220 18% 10%;
+  --card-foreground: 210 40% 96%;
+  --popover: 220 18% 10%;
+  --popover-foreground: 210 40% 96%;
+  --primary: 187 100% 50%;
+  --primary-foreground: 220 20% 6%;
+  --secondary: 270 80% 60%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 220 15% 16%;
+  --muted-foreground: 215 20% 55%;
+  --accent: 187 80% 40%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 210 40% 98%;
+  --success: 160 70% 45%;
+  --success-foreground: 210 40% 98%;
+  --border: 220 15% 18%;
+  --input: 220 15% 18%;
+  --ring: 187 100% 50%;
+  --radius: 0.75rem;
+}
+
+@layer components {
+  .glass-card {
+    background: linear-gradient(145deg, hsl(220 18% 12% / 0.8), hsl(220 20% 8% / 0.9));
+    border: 1px solid hsl(220 15% 22% / 0.5);
+    backdrop-filter: blur(20px);
+  }
+
+  .glass-card-active {
+    background: linear-gradient(145deg, hsl(220 18% 14% / 0.9), hsl(220 20% 10% / 0.95));
+    border: 1px solid hsl(187 100% 50% / 0.4);
+    box-shadow:
+      0 0 30px hsl(187 100% 50% / 0.15),
+      inset 0 1px 0 hsl(187 100% 50% / 0.1);
+  }
+
+  .surface-gradient {
+    background: linear-gradient(180deg, hsl(220 20% 8%) 0%, hsl(215 25% 5%) 100%);
+  }
+
+  .channel-item-active {
+    background: linear-gradient(90deg, hsl(187 100% 50% / 0.12), transparent);
+    border-left: 3px solid hsl(187 100% 50%);
+  }
+
+  /**
+   * TV: scroll funcional (overflow + teclas/remote) sem barra visível — não é browser.
+   */
+  .scrollbar-tv {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-tv::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}

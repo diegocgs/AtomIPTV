@@ -9,7 +9,7 @@ export function SplashPage() {
     getPlaylistBootstrapState()
     const t = window.setTimeout(() => {
       navigate('/home', { replace: true })
-    }, 2600)
+    }, 1200)
     return () => window.clearTimeout(t)
   }, [navigate])
 

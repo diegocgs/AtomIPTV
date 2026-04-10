@@ -15,6 +15,7 @@ export type PlayerNavigationState = {
   streamUrl: string
   title?: string
   channelId?: string
+  returnTo?: string
   /** Metadados livres para analytics / futuro */
   contentType?: string
 }

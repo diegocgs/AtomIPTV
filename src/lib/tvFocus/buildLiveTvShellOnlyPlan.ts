@@ -1,4 +1,4 @@
-import { buildAppTopBar } from './buildMaps'
+import { buildAppTopBar, buildVodCatalogHeaderNeighbors } from './buildMaps'
 import type { TvFocusPlan } from './types'
 
 /**
@@ -9,5 +9,16 @@ export function buildLiveTvShellOnlyPlan(firstMain: string): TvFocusPlan {
   return {
     neighbors: buildAppTopBar(firstMain),
     defaultFocusId: firstMain,
+  }
+}
+
+/** Movies/Series: ↓ dos ícones à direita do header → search da grelha (`movies-grid-search` / `series-grid-search`). */
+export function buildVodCatalogShellPlan(
+  shellMainFocusId: string,
+  gridSearchId: string,
+): TvFocusPlan {
+  return {
+    neighbors: buildVodCatalogHeaderNeighbors(shellMainFocusId, gridSearchId),
+    defaultFocusId: shellMainFocusId,
   }
 }

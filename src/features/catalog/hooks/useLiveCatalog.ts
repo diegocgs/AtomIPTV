@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePlaylists } from '@/features/playlists/hooks/usePlaylists'
-import { getLiveCatalogForActivePlaylist } from '../services/liveCatalogService'
+import { CATALOG_REFRESH_EVENT, type CatalogRefreshDetail } from '@/lib/catalogRefreshEvents'
+import {
+  getLiveCatalogForActivePlaylist,
+  peekLiveCatalogMemoryCacheForActivePlaylist,
+} from '../services/liveCatalogService'
 import type {
   LiveCatalogEmptyReason,
   LiveCatalogSourceKind,
@@ -26,19 +30,39 @@ function isAbortError(e: unknown): boolean {
   return e instanceof DOMException && e.name === 'AbortError'
 }
 
+function getInitialLiveCatalogState() {
+  const seeded = peekLiveCatalogMemoryCacheForActivePlaylist()
+  return {
+    categories: seeded?.categories ?? [],
+    channels: seeded?.channels ?? [],
+    sourceType: seeded?.sourceType ?? ('none' as LiveCatalogSourceKind),
+    isLoading: seeded == null,
+    error: null as string | null,
+  }
+}
+
 export function useLiveCatalog(): UseLiveCatalogResult {
   const { activePlaylistId, revision } = usePlaylists()
-  const [categories, setCategories] = useState<LiveCategory[]>([])
-  const [channels, setChannels] = useState<LiveChannel[]>([])
-  const [sourceType, setSourceType] = useState<LiveCatalogSourceKind>('none')
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [categories, setCategories] = useState<LiveCategory[]>(() => getInitialLiveCatalogState().categories)
+  const [channels, setChannels] = useState<LiveChannel[]>(() => getInitialLiveCatalogState().channels)
+  const [sourceType, setSourceType] = useState<LiveCatalogSourceKind>(() => getInitialLiveCatalogState().sourceType)
+  const [isLoading, setIsLoading] = useState(() => getInitialLiveCatalogState().isLoading)
+  const [error, setError] = useState<string | null>(() => getInitialLiveCatalogState().error)
 
   useEffect(() => {
     const ac = new AbortController()
     let cancelled = false
+    const seeded = peekLiveCatalogMemoryCacheForActivePlaylist()
 
-    setIsLoading(true)
+    if (seeded) {
+      setCategories(seeded.categories)
+      setChannels(seeded.channels)
+      setSourceType(seeded.sourceType)
+      setError(null)
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
+    }
     setError(null)
 
     ;(async () => {
@@ -65,6 +89,18 @@ export function useLiveCatalog(): UseLiveCatalogResult {
       ac.abort()
     }
   }, [revision, activePlaylistId])
+
+  useEffect(() => {
+    const handler = (ev: Event): void => {
+      const d = (ev as CustomEvent<CatalogRefreshDetail>).detail
+      if (!d || d.kind !== 'live' || d.playlistId !== activePlaylistId) return
+      setCategories(d.result.categories)
+      setChannels(d.result.channels)
+      setSourceType(d.result.sourceType)
+    }
+    window.addEventListener(CATALOG_REFRESH_EVENT, handler as EventListener)
+    return () => window.removeEventListener(CATALOG_REFRESH_EVENT, handler as EventListener)
+  }, [activePlaylistId])
 
   const reload = useCallback(async () => {
     setIsLoading(true)

@@ -3,6 +3,9 @@ import type { LiveCategory } from '../types/liveCatalog'
 /** Categoria sintética “Todos”. */
 export const LIVE_ALL_CATEGORY_ID = 'lc-all'
 
+/** Categoria sintética “Favorites” (só canais marcados como favoritos). */
+export const LIVE_FAVORITES_CATEGORY_ID = 'lc-favorites'
+
 /** Streams sem grupo M3U / sem categoria Xtream. */
 export const LIVE_UNCATEGORIZED_ID = 'cat-uncategorized'
 
@@ -17,13 +20,11 @@ export function buildM3uCategoriesFromGroups(
   groupNames: string[],
   hasUncategorized: boolean,
 ): LiveCategory[] {
-  const sorted = [...new Set(groupNames.filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b),
-  )
+  const ordered = [...new Set(groupNames.filter(Boolean))]
   const out: LiveCategory[] = [
     { id: LIVE_ALL_CATEGORY_ID, name: 'Todos', order: 0 },
   ]
-  sorted.forEach((name, i) => {
+  ordered.forEach((name, i) => {
     out.push({
       id: encodeCategoryIdFromGroup(name),
       name,
@@ -34,7 +35,7 @@ export function buildM3uCategoriesFromGroups(
     out.push({
       id: LIVE_UNCATEGORIZED_ID,
       name: 'Uncategorized',
-      order: sorted.length + 1,
+      order: ordered.length + 1,
     })
   }
   return dedupeCategories(out)

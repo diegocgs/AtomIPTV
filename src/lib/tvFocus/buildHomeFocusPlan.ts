@@ -2,25 +2,25 @@ import type { TvFocusPlan, TvNeighborMap } from './types'
 
 /**
  * Home alinhada ao `nexus-vision-prime` Index:
- * header (logo · perfil · energia) + hub bento — sem menu lateral.
+ * header (perfil · definições · power) + hub bento — sem menu lateral.
  */
 export function buildLegacyStyleHomeFocusPlan(): TvFocusPlan {
   const neighbors: TvNeighborMap = {}
 
-  neighbors['hdr-logo'] = {
+  neighbors['hdr-profile'] = {
     left: undefined,
-    right: 'hdr-profile',
-    down: 'hub-0',
+    right: 'hdr-settings',
+    down: 'hub-1',
     up: undefined,
   }
-  neighbors['hdr-profile'] = {
-    left: 'hdr-logo',
+  neighbors['hdr-settings'] = {
+    left: 'hdr-profile',
     right: 'hdr-power',
     down: 'hub-1',
     up: undefined,
   }
   neighbors['hdr-power'] = {
-    left: 'hdr-profile',
+    left: 'hdr-settings',
     right: undefined,
     down: 'hub-2',
     up: undefined,
@@ -30,7 +30,7 @@ export function buildLegacyStyleHomeFocusPlan(): TvFocusPlan {
     left: undefined,
     right: 'hub-1',
     down: 'hub-3',
-    up: 'hdr-logo',
+    up: 'hdr-profile',
   }
   neighbors['hub-1'] = {
     left: 'hub-0',

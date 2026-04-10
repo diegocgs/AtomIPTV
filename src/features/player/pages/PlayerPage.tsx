@@ -18,6 +18,7 @@ export function PlayerPage() {
 
   const navState = location.state as PlayerNavigationState | null | undefined
   const queryUrl = searchParams.get('url')
+  const returnTo = navState?.returnTo ?? '/home'
   const streamUrl =
     navState?.streamUrl ??
     (queryUrl ? tryDecodeURIComponent(queryUrl) : null) ??
@@ -28,10 +29,7 @@ export function PlayerPage() {
 
   const {
     toggle,
-    isPlaying,
-    isBuffering,
     error,
-    engineKind,
   } = usePlayerController({
     containerRef: hostRef,
     streamUrl,
@@ -56,7 +54,7 @@ export function PlayerPage() {
     return (
       <div className="player-page player-page--error" data-player-page>
         <p>URL de stream em falta.</p>
-        <button type="button" className="tv-btn" onClick={() => navigate(-1)}>
+        <button type="button" className="tv-btn" onClick={() => navigate(returnTo, { replace: true })}>
           Voltar
         </button>
       </div>
@@ -67,12 +65,8 @@ export function PlayerPage() {
     <div className="player-page" data-player-page>
       <PlayerSurface ref={hostRef} data-testid="player-surface-host" />
       <PlayerOverlay
-        title={title}
         state={{
-          isPlaying,
-          isBuffering,
           error,
-          engineKind,
         }}
       />
     </div>

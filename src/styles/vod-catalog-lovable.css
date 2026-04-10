@@ -1,0 +1,107 @@
+/**
+ * VOD Movies/Series — fidelizado a `diegocgs/nexus-vision-prime` `src/pages/Movies.tsx`.
+ * O fundo vem de `.surface-gradient` no mesmo nó que `.iptv-vod-catalog-scope`.
+ */
+
+.iptv-vod-catalog-scope {
+  -webkit-font-smoothing: antialiased;
+}
+
+/** Contentores da grelha não são alvos de foco (só os cartazes `TVFocusable`). */
+.iptv-vod-catalog-scope .vod-grid-scroll:focus,
+.iptv-vod-catalog-scope .vod-poster-grid:focus {
+  outline: none;
+}
+
+/** Lista de categorias: scroll fixo; foco só nas linhas `TVFocusable`. */
+.iptv-vod-catalog-scope .vod-cat-scroll:focus {
+  outline: none;
+}
+
+.iptv-vod-catalog-scope .iptv-vod-sidebar {
+  box-shadow: inset -1px 0 0 hsl(0 0% 100% / 0.04);
+  width: clamp(20rem, 18vw, 24rem);
+}
+
+.iptv-vod-catalog-scope .vod-search-strip {
+  padding: 1.15rem 1.25rem;
+}
+
+.iptv-vod-catalog-scope .iptv-vod-main {
+  padding-inline: clamp(0.8rem, 1vw, 1.35rem);
+}
+
+.iptv-vod-catalog-scope .iptv-vod-poster-meta {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  padding: 1.08rem 1.08rem 1rem;
+}
+
+.iptv-vod-catalog-scope .iptv-vod-poster-meta .iptv-vod-poster-title {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-size: 1.08rem;
+}
+
+.iptv-vod-catalog-scope .iptv-vod-cat-label {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  font-size: 1.08rem;
+}
+
+.iptv-vod-catalog-scope .iptv-vod-sidebar svg {
+  stroke-width: 1.95;
+}
+
+.iptv-vod-catalog-scope .channel-item-active {
+  border-left-width: 3px;
+  border-radius: 0.75rem;
+}
+
+/**
+ * Foco D-pad — espelha `nexus-vision-prime` `src/index.css` + `Movies.tsx`
+ * (anel interior + halo ciano; sem scale do `.tv-focusable--focused` global).
+ */
+.iptv-vod-catalog-scope .iptv-vod-cat-row-wrap.tv-focusable--focused {
+  transform: none;
+  z-index: 1;
+}
+
+.iptv-vod-catalog-scope
+  .iptv-vod-cat-row-wrap.tv-focusable--focused:not(.iptv-vod-cat-row-wrap--dpad):not(.iptv-vod-cat-row-wrap--dpad-applied) {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.55), 0 0 24px hsl(187 100% 50% / 0.2);
+  transform: scale(1.02);
+}
+
+.iptv-vod-catalog-scope .iptv-vod-cat-row-wrap.tv-focusable--focused.iptv-vod-cat-row-wrap--dpad {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.55), 0 0 24px hsl(187 100% 50% / 0.2);
+  transform: scale(1.02);
+}
+
+.iptv-vod-catalog-scope .iptv-vod-cat-row-wrap.tv-focusable--focused.iptv-vod-cat-row-wrap--dpad-applied {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35);
+}
+
+.iptv-vod-catalog-scope .tv-focusable.iptv-vod-poster-card.tv-focusable--focused,
+.iptv-vod-catalog-scope .tv-focusable.iptv-vod-poster-card.iptv-vod-poster-card--dpad-active {
+  transform: scale(1.02);
+  z-index: 1;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.55), 0 0 24px hsl(187 100% 50% / 0.2);
+}
+
+.iptv-vod-catalog-scope .tv-focusable.iptv-vod-poster-card:hover:not(.tv-focusable--focused):not(.iptv-vod-poster-card--dpad-active) {
+  transform: none;
+  box-shadow: inset 0 0 0 1px hsl(187 100% 50% / 0.2);
+}
+
+.tv-fast-focus .iptv-vod-catalog-scope .iptv-vod-cat-row-wrap.tv-focusable--focused:not(.iptv-vod-cat-row-wrap--dpad):not(.iptv-vod-cat-row-wrap--dpad-applied),
+.tv-fast-focus .iptv-vod-catalog-scope .iptv-vod-cat-row-wrap.tv-focusable--focused.iptv-vod-cat-row-wrap--dpad,
+.tv-fast-focus .iptv-vod-catalog-scope .iptv-vod-cat-row-wrap.tv-focusable--focused.iptv-vod-cat-row-wrap--dpad-applied {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35);
+  transform: none;
+}
+
+.tv-fast-focus .iptv-vod-catalog-scope .tv-focusable.iptv-vod-poster-card.tv-focusable--focused,
+.tv-fast-focus .iptv-vod-catalog-scope .tv-focusable.iptv-vod-poster-card.iptv-vod-poster-card--dpad-active {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35);
+  transform: none;
+}

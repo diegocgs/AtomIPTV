@@ -11,6 +11,8 @@ import {
   xtreamGetLiveCategories,
   xtreamGetLiveStreams,
 } from './xtreamApi.mjs'
+import { filterXtreamLiveCatalogForTv } from './xtreamLiveTvFilter.mjs'
+import { filterM3uEntriesForLive } from './m3uLiveFilter.mjs'
 import { normalizeLiveStreamUrl } from '../utils/normalizeLiveStreamUrl.mjs'
 
 async function fetchM3uText(url) {
@@ -24,7 +26,7 @@ async function fetchM3uText(url) {
 
 async function resolveM3uCatalog(m3uUrl) {
   const raw = await fetchM3uText(m3uUrl)
-  const entries = parseM3uText(raw)
+  const entries = filterM3uEntriesForLive(parseM3uText(raw))
   const hasUncategorized = entries.some((e) => !String(e.groupTitle ?? '').trim())
   const groupNames = entries
     .map((e) => String(e.groupTitle ?? '').trim())
@@ -61,10 +63,14 @@ function pickXtreamStreamUrl(baseUrl, username, password, row) {
 }
 
 async function resolveXtreamCatalog(baseUrl, username, password) {
-  const [catRows, streamRows] = await Promise.all([
+  const [catRowsRaw, streamRowsRaw] = await Promise.all([
     xtreamGetLiveCategories(baseUrl, username, password),
     xtreamGetLiveStreams(baseUrl, username, password),
   ])
+  const { categories: catRows, streams: streamRows } = filterXtreamLiveCatalogForTv(
+    catRowsRaw,
+    streamRowsRaw,
+  )
 
   const known = new Set(catRows.map((c) => `xt-cat:${String(c.category_id)}`))
   const needsUncategorized = streamRows.some((s) => {

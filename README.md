@@ -20,6 +20,8 @@ npm run dev
 
 Abre o URL indicado no terminal (por defeito `http://localhost:5173`).
 
+Para testar o **shell** (igual ao `tizen/shell`, iframe da SPA): `npm run dev:shell` e abra **`http://localhost:5173/tizen-shell/`** (ver secção abaixo).
+
 ### Desenvolvimento híbrido (recomendado)
 
 ```bash
@@ -32,10 +34,33 @@ Isto inicia:
 
 A UI passa a consumir `GET /api/live/catalog` (proxy `/api` no Vite).
 
+### Nota de manutenção — playback VOD no dev
+
+- O playback de **Live** continua no fluxo habitual do player.
+- O playback de **VOD progressivo** (`.mp4`, etc.) no browser de desenvolvimento usa o middleware local **`/api/vod-proxy`** do Vite para evitar `403`/bloqueios do provider ao pedir o ficheiro directamente.
+- A lógica ficou concentrada em:
+  - `src/features/player/hooks/usePlayerController.ts`
+  - `vite.config.ts`
+- Se algum rollback for necessário, reverta apenas:
+  - a resolução condicional de URL progressiva no `usePlayerController`
+  - o plugin/middleware `iptvDevVodProxy()` no `vite.config.ts`
+
 Para TV real, use arquitectura híbrida:
 - **WGT Shell local** (leve, instalado na TV)
 - **Hosted App** (UI principal)
 - **Backend híbrido** (catálogo/provider)
+
+---
+
+## Shell + app no dev (porta 5173)
+
+O Vite serve o **mesmo** `tizen/shell` em **`http://localhost:5173/tizen-shell/`** (iframe com a SPA na raiz da mesma origem).
+
+```bash
+npm run dev:shell
+```
+
+Abra **`http://localhost:5173/tizen-shell/`** no browser. A API híbrida continua acessível via proxy (`/api` → 8787); use `npm run dev:hybrid` se precisar do backend ao mesmo tempo.
 
 ---
 
@@ -47,9 +72,9 @@ npm run build
 
 Saída em **`dist/`** — **app React** (HTML + `assets/`) para servir na rede (hosted). O `base` do Vite está em `./`.
 
-**Pasta da imagem (WGT shell):** **`tizen/out/`** — gera-se com **`npm run build:tizen`** (`shell.js`, `shell.css`, `runtime-config.js`, `index.html`, `config.xml`, `icon.png`). **Não** é a mesma que `dist/`.
+**Pacote Tizen com shell (iframe):** após a app estar acessível por URL, **`HOSTED_APP_URL=http://IP:PORT npm run build:tizen`** gera **`tizen/out/`** com `shell.js`, `shell.css`, `runtime-config.js`, `index.html` do shell, `config.xml`, `icon.png`.
 
-**Dois artefactos:** **`dist/`** = UI React (URL no iframe). **`tizen/out/`** = pacote do **shell Tizen** (`shell.js`, `shell.css`, `runtime-config.js`, `index.html`, `icon.png`, `config.xml`), gerado por `npm run build:tizen` — pasta correcta para o Tizen CLI.
+**WGT só com a SPA (sem shell):** `npm run build` e depois **`node scripts/tizen-prepare.mjs`** — copia `dist/` para `tizen/out/` + manifesto.
 
 Para testar a build localmente como na TV (mesma origem que `vite preview`):
 
@@ -79,18 +104,23 @@ O `vite preview` (porta por defeito **4173**) agora faz **proxy de `/api`** para
 |---------|--------|
 | `npm run dev:server` | Sobe só a API híbrida local (`/api/live/catalog`). |
 | `npm run dev:hybrid` | Sobe frontend + API híbrida em paralelo. |
-| `npm run build:hosted` | Build da app principal hospedada (`dist/`). |
-| `npm run build:tizen` | Prepara o WGT Shell em **`tizen/out/`**. |
-| `HOSTED_APP_URL=http://IP:PORT npm run build:tizen` | Define URL da app hosted no `runtime-config.js` do shell. |
-| `npm run package:tizen` | Igual a `build:tizen` (artefacto final `.wgt` exige **Tizen CLI** no PC, ver abaixo). |
+| `npm run build:hosted` | Build da app hospedada em **`dist/`** (igual a `npm run build`). |
+| `HOSTED_APP_URL=http://IP:PORT npm run build:tizen` | Prepara o WGT Shell em **`tizen/out/`**. |
+| `npm run prepare:tizen:spa` | Prepara **`tizen/out/`** com a SPA embutida, sem shell/iframe. |
+| `TIZEN_SIGNING_PROFILE=<perfil> HOSTED_APP_URL=http://IP:PORT npm run package:tizen` | Faz build shell + gera o ficheiro `.wgt` com o Tizen CLI. |
 
 ### Gerar a pasta do pacote (passo obrigatório antes do .wgt)
 
 ```bash
-npm run build:tizen
+HOSTED_APP_URL=http://192.168.0.149:4173 npm run build:tizen
 ```
 
 Resultado: pasta **`tizen/out/`** com shell local (`index.html`, `shell.js`, `shell.css`, `runtime-config.js`, `config.xml`, `icon.png`).
+
+Regras práticas:
+- `HOSTED_APP_URL` é obrigatória no build Tizen.
+- Não use `localhost`, `127.0.0.1` ou `0.0.0.0` no `HOSTED_APP_URL`; a TV precisa alcançar esse endereço pela rede.
+- O shell só considera a app pronta quando a SPA hospedada envia confirmação de arranque. Isso evita “falso sucesso” só porque o iframe abriu.
 
 ### Fluxo recomendado de deploy híbrido
 
@@ -119,13 +149,12 @@ HOSTED_APP_URL=http://192.168.0.149:4173 npm run build:tizen
 3. A partir da pasta do pacote:
 
 ```bash
-cd tizen/out
-tizen package -t wgt -s <nome-do-perfil-de-assinatura> -- .
+TIZEN_SIGNING_PROFILE=<nome-do-perfil> HOSTED_APP_URL=http://192.168.0.149:4173 npm run package:tizen
 ```
 
-O ficheiro **`.wgt`** é gerado no diretório actual (ou conforme a saída indicada pelo CLI).
+O ficheiro **`.wgt`** é gerado em **`tizen/out/`**.
 
-**Nota:** O `config.xml` usa `com.iptvsamsung` / `com.iptvsamsung.app` como identificadores de exemplo. Antes de submeter à loja ou de usar certificados da equipa, alinhe **package** / **application id** com o que o gestor de certificados Tizen exige.
+**Nota:** O `config.xml` ainda usa IDs placeholder (`iptvsam01a.iptvsam01b`). Antes de submeter à loja ou de usar certificados finais, alinhe **package** / **application id** com o perfil de assinatura Samsung/Tizen.
 
 ### Instalar na TV (desenvolvimento)
 

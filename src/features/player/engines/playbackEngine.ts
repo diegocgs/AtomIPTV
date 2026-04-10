@@ -12,10 +12,25 @@ export function isAvPlayAvailable(): boolean {
 }
 
 /**
- * Escolhe motor: AVPlay em Tizen quando disponível; caso contrário HTML5 (browser / dev).
+ * HTML5 `<video>` por omissão — renderiza inline no DOM sem dependências de
+ * transparência ou compositing layers nativas. O Tizen WebKit suporta HLS
+ * nativamente, por isso a experiência é equivalente ao AVPlay para live TV.
+ *
+ * O AVPlay (nativo) tem melhor suporte de codecs/DRM mas requer configuração
+ * de overlay complexa (body transparente, sem backdrop-filter nos ancestrais do
+ * vídeo) que varia entre versões de firmware Samsung e causa ecrã preto em
+ * muitos modelos. Pode ser forçado via `preferredEngine: 'avplay'` se necessário.
  */
 export function resolvePlaybackEngineKind(): PlaybackEngineKind {
-  return isAvPlayAvailable() ? 'avplay' : 'html5'
+  return 'html5'
+}
+
+export function resolvePreferredPlaybackEngineKind(
+  preferred?: PlaybackEngineKind | null,
+): PlaybackEngineKind {
+  if (preferred === 'html5') return 'html5'
+  if (preferred === 'avplay' && isAvPlayAvailable()) return 'avplay'
+  return resolvePlaybackEngineKind()
 }
 
 /**

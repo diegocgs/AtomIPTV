@@ -1,3 +1,4 @@
+import { onPlaylistDeleted } from '@/lib/catalogPlaylistLifecycle'
 import type { PlaylistFormPayload, PlaylistCommitResult } from '../types/form'
 import type { PlaylistEntity } from '../types/playlist'
 import { resolveM3UPlaylist } from './m3uResolver'
@@ -33,7 +34,62 @@ const DEFAULT_SEED_PLAYLISTS: SeedPlaylist[] = [
     password: 'a45mpju7vhy',
     server: 'http://assistirpainel.info:8880',
   },
+  {
+    kind: 'xtream',
+    name: 'Brasil Xtream',
+    username: '2nsrgtjfuxy',
+    password: 'a45mpju7vhy',
+    server: 'http://assistirpainel.info:8880',
+  },
 ]
+
+function hasValidM3uConfig(entity: PlaylistEntity & { type: 'm3u' }): boolean {
+  const url =
+    entity.resolution?.kind === 'm3u' && entity.resolution.playlistUrl.trim()
+      ? entity.resolution.playlistUrl.trim()
+      : entity.m3u.url.trim()
+  return url.length > 0
+}
+
+function hasValidXtreamConfig(entity: PlaylistEntity & { type: 'xtream' }): boolean {
+  const server =
+    entity.resolution?.kind === 'xtream' && entity.resolution.apiBaseUrl.trim()
+      ? entity.resolution.apiBaseUrl.trim()
+      : entity.xtream.server.trim()
+  return (
+    server.length > 0 &&
+    entity.xtream.username.trim().length > 0 &&
+    entity.xtream.password.trim().length > 0
+  )
+}
+
+function isPlaylistUsable(entity: PlaylistEntity): boolean {
+  return entity.type === 'm3u' ? hasValidM3uConfig(entity) : hasValidXtreamConfig(entity)
+}
+
+function sanitizeSnapshot(snapshot: PlaylistStorageSnapshot): PlaylistStorageSnapshot {
+  const playlists = snapshot.playlists.filter(isPlaylistUsable)
+  const activePlaylistId =
+    snapshot.activePlaylistId && playlists.some((playlist) => playlist.id === snapshot.activePlaylistId)
+      ? snapshot.activePlaylistId
+      : (playlists[0]?.id ?? null)
+
+  return { playlists, activePlaylistId }
+}
+
+function saveSanitizedSnapshotIfNeeded(snapshot: PlaylistStorageSnapshot): PlaylistStorageSnapshot {
+  const sanitized = sanitizeSnapshot(snapshot)
+  const changed =
+    sanitized.activePlaylistId !== snapshot.activePlaylistId ||
+    sanitized.playlists.length !== snapshot.playlists.length ||
+    sanitized.playlists.some((playlist, index) => snapshot.playlists[index]?.id !== playlist.id)
+
+  if (changed) {
+    playlistStorageSave(sanitized)
+  }
+
+  return sanitized
+}
 
 function newId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -46,60 +102,81 @@ function now(): number {
   return Date.now()
 }
 
-/**
- * Seed de playlists padrão (mesmo conjunto do projeto original).
- * Só executa quando ainda não existem playlists guardadas.
- */
-export function playlistServiceEnsureDefaultSeeds(): void {
-  const snap = playlistStorageLoad()
-  if (snap.playlists.length > 0) return
-
-  const baseTs = now()
-  const seeded: PlaylistEntity[] = DEFAULT_SEED_PLAYLISTS.map((item, idx) => {
-    const t = baseTs + idx
-    if (item.kind === 'm3u') {
-      const { config, resolution } = resolveM3UPlaylist(item.url)
-      return {
-        id: newId(),
-        name: item.name,
-        type: 'm3u',
-        isActive: false,
-        createdAt: t,
-        updatedAt: t,
-        lastValidatedAt: t,
-        status: 'ready',
-        m3u: config,
-        resolution,
-      }
-    }
-    const resolved = resolveXtreamPlaylist({
-      serverRaw: item.server,
-      username: item.username,
-      password: item.password,
-    })
+function buildEntityFromSeed(item: SeedPlaylist, t: number): PlaylistEntity {
+  if (item.kind === 'm3u') {
+    const { config, resolution } = resolveM3UPlaylist(item.url)
     return {
       id: newId(),
       name: item.name,
-      type: 'xtream',
+      type: 'm3u',
       isActive: false,
       createdAt: t,
       updatedAt: t,
       lastValidatedAt: t,
       status: 'ready',
-      xtream: resolved.config,
-      resolution: resolved.resolution,
+      m3u: config,
+      resolution,
     }
+  }
+  const resolved = resolveXtreamPlaylist({
+    serverRaw: item.server,
+    username: item.username,
+    password: item.password,
   })
+  return {
+    id: newId(),
+    name: item.name,
+    type: 'xtream',
+    isActive: false,
+    createdAt: t,
+    updatedAt: t,
+    lastValidatedAt: t,
+    status: 'ready',
+    xtream: resolved.config,
+    resolution: resolved.resolution,
+  }
+}
 
+/** Verifica se um seed já existe na lista (por nome exacto). */
+function seedAlreadyExists(item: SeedPlaylist, playlists: PlaylistEntity[]): boolean {
+  return playlists.some((p) => p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+}
+
+/**
+ * Seed de playlists padrão.
+ * - Se não existem playlists: injeta todas.
+ * - Se já existem playlists: injeta apenas as que ainda não existam (por nome).
+ *   Garante que novas entradas do seed chegam a utilizadores com dados existentes.
+ */
+export function playlistServiceEnsureDefaultSeeds(): void {
+  const snap = saveSanitizedSnapshotIfNeeded(playlistStorageLoad())
+  const baseTs = now()
+
+  if (snap.playlists.length === 0) {
+    const seeded: PlaylistEntity[] = DEFAULT_SEED_PLAYLISTS.map((item, idx) =>
+      buildEntityFromSeed(item, baseTs + idx),
+    )
+    playlistStorageSave({
+      playlists: seeded,
+      activePlaylistId: seeded[0]?.id ?? null,
+    })
+    return
+  }
+
+  // Injetar apenas seeds em falta (novas entradas adicionadas ao DEFAULT_SEED_PLAYLISTS)
+  const missing = DEFAULT_SEED_PLAYLISTS.filter((item) => !seedAlreadyExists(item, snap.playlists))
+  if (missing.length === 0) return
+
+  const newEntities = missing.map((item, idx) => buildEntityFromSeed(item, baseTs + idx))
   playlistStorageSave({
-    playlists: seeded,
-    activePlaylistId: seeded[0]?.id ?? null,
+    playlists: [...snap.playlists, ...newEntities],
+    activePlaylistId: snap.activePlaylistId,
   })
 }
 
 export function playlistServiceGetSnapshot(): PlaylistStorageSnapshot {
   playlistServiceEnsureDefaultSeeds()
-  return playlistStorageLoad()
+  return saveSanitizedSnapshotIfNeeded(playlistStorageLoad())
 }
 
 /**
@@ -117,6 +194,11 @@ export function playlistServiceSubmitForm(
     if (payload.kind === 'm3u') {
       const v = validateM3UInput(payload.name, payload.url)
       if (!v.ok) return { ok: false, error: v.message }
+      const normUrl = payload.url.trim().toLowerCase()
+      const dup = snap.playlists.find(
+        (p) => p.type === 'm3u' && p.m3u.url.trim().toLowerCase() === normUrl,
+      )
+      if (dup) return { ok: false, error: `Já existe uma playlist com este URL ("${dup.name}").` }
       const { config, resolution } = resolveM3UPlaylist(payload.url)
       const t = now()
       const entity: PlaylistEntity = {
@@ -139,6 +221,15 @@ export function playlistServiceSubmitForm(
 
     const v = validateXtreamInput(payload.name, payload.server, payload.username, payload.password)
     if (!v.ok) return { ok: false, error: v.message }
+    const normServer = payload.server.trim().toLowerCase()
+    const normUser = payload.username.trim().toLowerCase()
+    const dup = snap.playlists.find(
+      (p) =>
+        p.type === 'xtream' &&
+        p.xtream.server.trim().toLowerCase() === normServer &&
+        p.xtream.username.trim().toLowerCase() === normUser,
+    )
+    if (dup) return { ok: false, error: `Já existe uma playlist com este servidor e utilizador ("${dup.name}").` }
     let resolved: ReturnType<typeof resolveXtreamPlaylist>
     try {
       resolved = resolveXtreamPlaylist({
@@ -228,7 +319,7 @@ export function playlistServiceSubmitForm(
 }
 
 export function playlistServiceSetActivePlaylist(id: string | null): PlaylistCommitResult {
-  const snap = playlistStorageLoad()
+  const snap = saveSanitizedSnapshotIfNeeded(playlistStorageLoad())
   if (id !== null && !snap.playlists.some((p) => p.id === id)) {
     return { ok: false, error: 'Playlist not found' }
   }
@@ -237,21 +328,22 @@ export function playlistServiceSetActivePlaylist(id: string | null): PlaylistCom
 }
 
 export function playlistServiceDeletePlaylist(id: string): void {
-  const snap = playlistStorageLoad()
+  const snap = saveSanitizedSnapshotIfNeeded(playlistStorageLoad())
   const filtered = snap.playlists.filter((p) => p.id !== id)
   let activePlaylistId = snap.activePlaylistId
   if (activePlaylistId === id) {
     activePlaylistId = filtered[0]?.id ?? null
   }
   playlistStorageSave({ playlists: filtered, activePlaylistId })
+  onPlaylistDeleted(id)
 }
 
 export function playlistServiceGetById(id: string): PlaylistEntity | undefined {
-  return playlistStorageLoad().playlists.find((p) => p.id === id)
+  return saveSanitizedSnapshotIfNeeded(playlistStorageLoad()).playlists.find((p) => p.id === id)
 }
 
 export function playlistServiceGetActivePlaylist(): PlaylistEntity | null {
-  const snap = playlistStorageLoad()
+  const snap = saveSanitizedSnapshotIfNeeded(playlistStorageLoad())
   if (!snap.activePlaylistId) return null
   return snap.playlists.find((p) => p.id === snap.activePlaylistId) ?? null
 }

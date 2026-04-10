@@ -8,9 +8,9 @@ export function SettingsPage() {
     () => ({
       neighbors: mergeNeighborMaps(buildAppTopBar('st-0'), {
         'st-0': {
-          left: APP_HDR.logo,
+          left: APP_HDR.profile,
           right: undefined,
-          up: APP_HDR.logo,
+          up: APP_HDR.profile,
           down: undefined,
         },
       }),

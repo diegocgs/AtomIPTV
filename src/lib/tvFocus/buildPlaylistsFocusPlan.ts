@@ -1,7 +1,7 @@
 import { APP_HDR, buildAppTopBar, mergeNeighborMaps } from './buildMaps'
 import type { TvFocusPlan, TvNeighborMap } from './types'
 
-const H = APP_HDR.logo
+const H = APP_HDR.profile
 
 /** Lista principal: Add + cartões + edit/delete por item (fluxo vertical TV-friendly). */
 export function buildPlaylistsListFocusPlan(playlistCount: number): TvFocusPlan {
@@ -26,22 +26,26 @@ export function buildPlaylistsListFocusPlan(playlistCount: number): TvFocusPlan 
 
   for (let i = 0; i < playlistCount; i++) {
     neighbors[`pl-c-${i}`] = {
-      up: i === 0 ? 'pl-add' : `pl-d-${i - 1}`,
+      // UP num card deve ir sempre para o header, nunca para o delete do card anterior
+      up: H,
       down: `pl-e-${i}`,
       left: i === 0 ? 'pl-add' : `pl-c-${i - 1}`,
       right: i < playlistCount - 1 ? `pl-c-${i + 1}` : undefined,
     }
     neighbors[`pl-e-${i}`] = {
       up: `pl-c-${i}`,
+      // DOWN no edit vai para o delete (verticalmente, lado a lado)
       down: `pl-d-${i}`,
-      left: H,
+      // LEFT no edit do card 0 vai para Add, dos restantes vai para o delete do card anterior
+      left: i === 0 ? 'pl-add' : `pl-d-${i - 1}`,
       right: `pl-d-${i}`,
     }
     neighbors[`pl-d-${i}`] = {
       up: `pl-c-${i}`,
       down: i < playlistCount - 1 ? `pl-c-${i + 1}` : undefined,
       left: `pl-e-${i}`,
-      right: i < playlistCount - 1 ? `pl-c-${i + 1}` : undefined,
+      // RIGHT no delete deve ir para o edit do próximo card (edit/delete são pares adjacentes)
+      right: i < playlistCount - 1 ? `pl-e-${i + 1}` : undefined,
     }
   }
 

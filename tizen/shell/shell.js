@@ -1,6 +1,7 @@
 (function () {
   const cfg = window.__IPTV_SHELL_CONFIG__ || {}
   const hostedAppUrl = String(cfg.hostedAppUrl || '').trim()
+  const shellReadyTimeoutMs = Number(cfg.shellReadyTimeoutMs || 20000)
 
   const loadingEl = document.getElementById('shell-loading')
   const statusEl = document.getElementById('shell-status')
@@ -11,6 +12,7 @@
 
   let timeoutId = null
   let loaded = false
+  let frameOrigin = null
 
   function setStatus(message) {
     if (statusEl) statusEl.textContent = message
@@ -52,13 +54,14 @@
     if (timeoutId) clearTimeout(timeoutId)
     timeoutId = setTimeout(function () {
       if (!loaded) {
-        showError('A app hosted nao respondeu a tempo. Verifique rede/servidor.')
+        showError('A app hosted nao confirmou arranque. Verifique rede, URL e se a SPA carregou corretamente.')
       }
-    }, 15000)
+    }, shellReadyTimeoutMs)
   }
 
   function buildFrameUrl(base) {
     const u = new URL(base)
+    frameOrigin = u.origin
     if (!u.hash) {
       u.hash = '#/'
     }
@@ -78,6 +81,9 @@
     }
 
     loaded = false
+    if (frameEl) {
+      frameEl.classList.add('shell__frame--hidden')
+    }
     showLoading('A carregar app...')
     startTimeoutGuard()
 
@@ -99,12 +105,56 @@
 
   if (frameEl) {
     frameEl.addEventListener('load', function () {
-      markLoaded()
+      if (!loaded) {
+        setStatus('App carregada. A aguardar confirmação...')
+      }
     })
     frameEl.addEventListener('error', function () {
       showError('Falha ao abrir a app hosted.')
     })
   }
+
+  window.addEventListener('message', function (event) {
+    if (loaded) return
+    if (frameEl && event.source !== frameEl.contentWindow) return
+    if (frameOrigin && event.origin !== frameOrigin) return
+    var data = event.data || {}
+    if (data.type !== 'iptv-shell-ready') return
+    markLoaded()
+  })
+
+  function forwardBackToHosted() {
+    if (frameEl && frameEl.contentWindow) {
+      try {
+        frameEl.contentWindow.postMessage({ type: 'iptv-shell-back' }, '*')
+      } catch (err) {}
+    }
+  }
+
+  function onHardwareBack(event) {
+    var keyName = String((event && event.keyName) || '').toLowerCase()
+    if (keyName !== 'back') return
+    forwardBackToHosted()
+    if (event && typeof event.preventDefault === 'function') {
+      event.preventDefault()
+    }
+  }
+
+  function onBackKeyDown(event) {
+    var key = String((event && event.key) || '').toLowerCase()
+    var code = Number((event && event.keyCode) || 0)
+    if (!(key === 'back' || key === 'browserback' || key === 'xf86back' || code === 10009 || code === 461 || code === 27)) {
+      return
+    }
+    forwardBackToHosted()
+    if (event && typeof event.preventDefault === 'function') {
+      event.preventDefault()
+    }
+  }
+
+  window.addEventListener('tizenhwkey', onHardwareBack, true)
+  document.addEventListener('tizenhwkey', onHardwareBack, true)
+  window.addEventListener('keydown', onBackKeyDown, true)
 
   if (retryBtn) {
     retryBtn.addEventListener('click', function () {

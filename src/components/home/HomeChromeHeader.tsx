@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TVFocusable } from '@/lib/tvFocus'
+import { AccountInfoDialog } from './AccountInfoDialog'
 
-function attemptExitApp(): void {
-  const nav = window.navigator as Navigator & { app?: { exitApp?: () => void } }
-  if (typeof nav.app?.exitApp === 'function') {
-    nav.app.exitApp()
-    return
-  }
-  window.close()
+function requestExit(): void {
+  window.dispatchEvent(new CustomEvent('tv-request-exit'))
 }
 
 function IconUser() {
@@ -20,6 +16,27 @@ function IconUser() {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function IconSettings() {
+  return (
+    <svg className="home-chrome-header__icon" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   )
@@ -46,9 +63,10 @@ function IconPower() {
 export function HomeChromeHeader() {
   const navigate = useNavigate()
   const [time, setTime] = useState(() => new Date())
+  const [showAccount, setShowAccount] = useState(false)
 
   useEffect(() => {
-    const id = window.setInterval(() => setTime(new Date()), 1000)
+    const id = window.setInterval(() => setTime(new Date()), 30000)
     return () => window.clearInterval(id)
   }, [])
 
@@ -63,14 +81,14 @@ export function HomeChromeHeader() {
     })
 
   return (
+    <>
     <header className="home-chrome-header">
       <div className="home-chrome-header__left">
-        <TVFocusable id="hdr-logo" className="home-chrome-header__brand-wrap">
+        <div className="home-chrome-header__brand-wrap">
           <div
             className="home-chrome-header__brand"
-            data-tv-activate
-            role="button"
             onClick={() => navigate('/home')}
+            role="link"
           >
             <div className="home-chrome-header__mark" aria-hidden>
               <span className="home-chrome-header__mark-text">TV</span>
@@ -79,7 +97,7 @@ export function HomeChromeHeader() {
               Stream<span className="home-chrome-header__title-accent">Pro</span>
             </span>
           </div>
-        </TVFocusable>
+        </div>
       </div>
 
       <div className="home-chrome-header__clock">
@@ -93,12 +111,21 @@ export function HomeChromeHeader() {
             className="home-chrome-header__action-inner"
             data-tv-activate
             role="button"
-            onClick={() => {
-              window.alert('Account (Phase 1 placeholder — same slot as Profile in the legacy app).')
-            }}
+            onClick={() => setShowAccount(true)}
           >
             <IconUser />
             <span className="sr-only">Profile</span>
+          </div>
+        </TVFocusable>
+        <TVFocusable id="hdr-settings" className="home-chrome-header__action">
+          <div
+            className="home-chrome-header__action-inner"
+            data-tv-activate
+            role="button"
+            onClick={() => navigate('/settings')}
+          >
+            <IconSettings />
+            <span className="sr-only">Settings</span>
           </div>
         </TVFocusable>
         <TVFocusable id="hdr-power" className="home-chrome-header__action">
@@ -106,10 +133,7 @@ export function HomeChromeHeader() {
             className="home-chrome-header__action-inner"
             data-tv-activate
             role="button"
-            onClick={() => {
-              const ok = window.confirm('Deseja sair do aplicativo?')
-              if (ok) attemptExitApp()
-            }}
+            onClick={requestExit}
           >
             <IconPower />
             <span className="sr-only">Power</span>
@@ -117,5 +141,10 @@ export function HomeChromeHeader() {
         </TVFocusable>
       </div>
     </header>
+
+    {showAccount && (
+      <AccountInfoDialog onClose={() => setShowAccount(false)} />
+    )}
+  </>
   )
 }

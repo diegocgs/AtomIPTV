@@ -4,7 +4,14 @@ let activeInstance: AvplayPlaybackEngine | null = null
 
 /**
  * Motor Samsung AVPlay (`window.webapis.avplay`).
- * Uma instância ativa de cada vez; `open`/`destroy` fecham sessões anteriores.
+ *
+ * Usa `<object type="application/avplayer">` como superfície de renderização —
+ * o método mais fiável em todas as versões de firmware Tizen (5.x → 8.x).
+ * O elemento object renderiza inline no fluxo HTML, portanto backgrounds opacos
+ * em ancestrais não bloqueiam o vídeo (ao contrário do modo overlay nativo, que
+ * requer body transparente ou PLAYER_DISPLAY_TYPE_OVERLAY disponível).
+ *
+ * Uma instância ativa de cada vez; `destroy` fecha sessões anteriores.
  */
 export class AvplayPlaybackEngine implements PlaybackEngine {
   readonly kind = 'avplay' as const
@@ -17,14 +24,37 @@ export class AvplayPlaybackEngine implements PlaybackEngine {
     if (activeInstance === instance) activeInstance = null
   }
 
-  private container: HTMLElement | null = null
+  /** Elemento <object> que serve de superfície de renderização do AVPlay. */
+  private avplayObject: HTMLObjectElement | null = null
   private destroyed = false
   private currentUrl: string | null = null
   /** Após `prepareAsync` + primeiro `play`, usa-se `play()` directo para retomar. */
   private prepared = false
 
   attachDisplay(container: HTMLElement): void {
-    this.container = container
+    // Criar <object type="application/avplayer"> como surface de renderização.
+    // O AVPlay liga-se automaticamente a este elemento; não é necessário setDisplayRect.
+    // O elemento preenche o container via CSS absolute, tal como faria um <video>.
+    const obj = document.createElement('object')
+    obj.type = 'application/avplayer'
+    obj.style.cssText =
+      'display:block;position:absolute;inset:0;width:100%;height:100%;'
+    this.avplayObject = obj
+    container.appendChild(obj)
+  }
+
+  /** Live HLS: listener de buffering para sincronizar estado da UI. */
+  private wireAvPlayListener(): void {
+    const av = window.webapis?.avplay
+    if (!av || typeof av.setListener !== 'function') return
+    try {
+      av.setListener({
+        onbufferingstart: () => { /* state tracking is done by the controller */ },
+        onbufferingcomplete: () => { /* idem */ },
+      })
+    } catch {
+      /* ignore */
+    }
   }
 
   init(): void {
@@ -45,21 +75,20 @@ export class AvplayPlaybackEngine implements PlaybackEngine {
     if (this.destroyed) return
     const av = window.webapis!.avplay!
 
-    try {
-      av.stop()
-    } catch {
-      /* já parado */
-    }
-    try {
-      av.close()
-    } catch {
-      /* já fechado */
-    }
+    try { av.stop?.() } catch { /* já parado */ }
+    try { av.close?.() } catch { /* já fechado */ }
 
     av.open(url)
+    // setDisplayMethod controla o modo de ajuste do vídeo ao element object.
+    // Não chamar setDisplayType nem setDisplayRect: o <object> gere o rect.
+    try {
+      av.setDisplayMethod?.('PLAYER_DISPLAY_MODE_LETTER_BOX')
+    } catch {
+      /* perfis antigos */
+    }
+    this.wireAvPlayListener()
     this.currentUrl = url
     this.prepared = false
-    this.syncDisplayRect()
   }
 
   private prepareAndPlay(): Promise<void> {
@@ -117,7 +146,7 @@ export class AvplayPlaybackEngine implements PlaybackEngine {
 
   private async stopInternal(): Promise<void> {
     try {
-      window.webapis?.avplay?.stop()
+      window.webapis?.avplay?.stop?.()
     } catch {
       /* ignore */
     }
@@ -133,14 +162,27 @@ export class AvplayPlaybackEngine implements PlaybackEngine {
     if (this.destroyed) return
     this.destroyed = true
     this.prepared = false
+
+    // Remover o elemento <object> de forma síncrona ANTES do await,
+    // para que o novo engine (que corre imediatamente após o cleanup)
+    // não encontre dois <object> no container ao chamar attachDisplay.
+    this.avplayObject?.remove()
+    this.avplayObject = null
+
     await this.stopInternal()
-    try {
-      window.webapis?.avplay?.close()
-    } catch {
-      /* ignore */
+
+    // Guarda: só fechar o AVPlay se este engine ainda for a instância activa.
+    // O cleanup do useLayoutEffect chama `void engine.destroy()` sem await;
+    // o novo engine pode já ter chamado open() antes deste microtask continuar.
+    // Chamar close() nesse caso mataria o novo stream.
+    if (activeInstance === this) {
+      try {
+        window.webapis?.avplay?.close()
+      } catch {
+        /* ignore */
+      }
     }
     AvplayPlaybackEngine.clearActiveIf(this)
-    this.container = null
     this.currentUrl = null
   }
 
@@ -157,23 +199,6 @@ export class AvplayPlaybackEngine implements PlaybackEngine {
   private ensureAv(): void {
     if (!window.webapis?.avplay) {
       throw new Error('webapis.avplay não encontrado.')
-    }
-  }
-
-  private syncDisplayRect(): void {
-    const av = window.webapis?.avplay
-    const el = this.container
-    if (!av || !el || this.destroyed) return
-    const r = el.getBoundingClientRect()
-    const x = Math.floor(r.left)
-    const y = Math.floor(r.top)
-    const w = Math.floor(r.width)
-    const h = Math.floor(r.height)
-    if (w <= 0 || h <= 0) return
-    try {
-      av.setDisplayRect(x, y, w, h)
-    } catch {
-      /* alguns perfis exigem chamada após prepare */
     }
   }
 }

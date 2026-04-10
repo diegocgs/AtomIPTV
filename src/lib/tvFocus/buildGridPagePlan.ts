@@ -2,12 +2,12 @@ import { APP_HDR, buildAppTopBar, buildGridNeighbors, mergeNeighborMaps } from '
 import type { TvFocusPlan, TvNeighborMap } from './types'
 
 export function buildGridPagePlan(itemCount: number, columns: number): TvFocusPlan {
-  const back = APP_HDR.logo
+  const back = APP_HDR.profile
   if (itemCount === 0) {
     const shell = buildAppTopBar('grid-empty')
     return {
       neighbors: mergeNeighborMaps(shell, {
-        'grid-empty': { left: back, up: APP_HDR.logo },
+        'grid-empty': { left: back, up: APP_HDR.profile },
       }),
       defaultFocusId: 'grid-empty',
     }
@@ -29,7 +29,7 @@ export function buildGridPagePlan(itemCount: number, columns: number): TvFocusPl
   for (let c = 0; c < row0Cols; c++) {
     const id = `g-0-${c}`
     const cur = neighbors[id] ?? {}
-    neighbors[id] = { ...cur, up: APP_HDR.logo }
+    neighbors[id] = { ...cur, up: APP_HDR.profile }
   }
 
   for (let r = 0; r < rows; r++) {
@@ -38,6 +38,6 @@ export function buildGridPagePlan(itemCount: number, columns: number): TvFocusPl
     neighbors[id] = { ...cur, left: back }
   }
   const first = neighbors['g-0-0'] ?? {}
-  neighbors['g-0-0'] = { ...first, left: back, up: APP_HDR.logo }
+  neighbors['g-0-0'] = { ...first, left: back, up: APP_HDR.profile }
   return { neighbors, defaultFocusId: 'g-0-0' }
 }

@@ -110,7 +110,21 @@ export function PlaylistsPage() {
   return (
     <FocusPlan plan={plan}>
       <div className="playlists-page playlists-page--legacy">
-        <h1 className="playlists-page__title">All Playlists</h1>
+        <div className="playlists-page__hero">
+          <div className="playlists-page__hero-copy">
+            <p className="playlists-page__eyebrow">Sources</p>
+            <h1 className="playlists-page__title">Playlists</h1>
+            <p className="playlists-page__subtitle">
+              Escolha a fonte ativa do app, edite provedores existentes ou adicione uma nova playlist.
+            </p>
+          </div>
+          <div className="playlists-page__hero-stats" aria-label="Resumo das playlists">
+            <span className="playlists-page__hero-pill">{playlists.length + 1} cards</span>
+            <span className="playlists-page__hero-pill playlists-page__hero-pill--active">
+              {playlists.filter((playlist) => playlist.isActive).length || 0} active
+            </span>
+          </div>
+        </div>
 
         <div className="playlists-page__grid">
           <TVFocusable id="pl-add" className="playlists-card-wrap">

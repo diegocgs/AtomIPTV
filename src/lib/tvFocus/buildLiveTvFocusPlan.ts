@@ -30,13 +30,13 @@ export function buildLiveTvFocusPlan(
   )
   const shell = buildAppTopBar('cat-0')
   const neighbors: TvNeighborMap = mergeNeighborMaps(shell, withCats)
-  const back = APP_HDR.logo
+  const back = APP_HDR.profile
   for (let i = 0; i < categoryCount; i++) {
     const id = `cat-${i}`
     const cur = neighbors[id] ?? {}
     neighbors[id] = { ...cur, left: back }
   }
   const cat0 = neighbors['cat-0'] ?? {}
-  neighbors['cat-0'] = { ...cat0, up: APP_HDR.logo }
+  neighbors['cat-0'] = { ...cat0, up: APP_HDR.profile }
   return { neighbors, defaultFocusId: 'cat-0' }
 }

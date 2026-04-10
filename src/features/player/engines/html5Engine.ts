@@ -1,4 +1,6 @@
 import Hls from 'hls.js'
+import { isSamsungTizenLikeRuntime } from '@/lib/tvFocus/tvRemoteKeys'
+import { isAutoplayPolicyError } from '../autoplayPolicy'
 import type { PlaybackEngine } from '../types/player'
 
 function isHlsUrl(url: string): boolean {
@@ -30,8 +32,14 @@ function createHlsWithIptvHeaders(): Hls {
 }
 
 /**
- * Motor de desenvolvimento / fallback: `<video>` no browser.
- * HLS (.m3u8): Safari usa nativo quando possível; noutros browsers usa hls.js.
+ * Motor HTML5 `<video>`.
+ *
+ * No Tizen Samsung, o `<video>` é colocado directamente no `<body>` com
+ * `position: fixed` e coordenadas calculadas a partir do container original.
+ * Isto evita que `overflow:hidden`, `border-radius`, `backdrop-filter` e
+ * outras propriedades CSS em ancestrais impeçam a renderização de frames
+ * (bug do compositing no Tizen WebKit ≤Chrome 76).
+ * No browser de desenvolvimento, o `<video>` é filho directo do container.
  */
 export class Html5PlaybackEngine implements PlaybackEngine {
   readonly kind = 'html5' as const
@@ -40,6 +48,10 @@ export class Html5PlaybackEngine implements PlaybackEngine {
   private video: HTMLVideoElement | null = null
   private hls: Hls | null = null
   private destroyed = false
+  /** Após fallback muted (política de autoplay), reativa som no primeiro gesto. */
+  private unmuteGestureAttached = false
+  private rectRafId: number | null = null
+  private resizeObserver: ResizeObserver | null = null
 
   attachDisplay(container: HTMLElement): void {
     this.container = container
@@ -58,12 +70,78 @@ export class Html5PlaybackEngine implements PlaybackEngine {
     v.autoplay = false
     v.preload = 'auto'
     v.className = 'html5-engine-video'
-    v.style.width = '100%'
-    v.style.height = '100%'
     v.style.objectFit = 'contain'
     v.style.background = '#000'
-    this.container.appendChild(v)
+
+    // No Tizen, overflow:hidden + border-radius em ancestrais impedem o WebKit
+    // de renderizar frames de <video> (áudio ok, vídeo preto).
+    // Solução: montar o <video> no body com position:fixed sobre o container.
+    // EXCEPTO no fullscreen (.player-page, z-index:150): aí o container não
+    // tem os CSS problemáticos e o vídeo dentro do container já funciona.
+    const isFullscreen = !!this.container.closest('.player-page')
+    const needsDetach = isSamsungTizenLikeRuntime() && !isFullscreen
+
+    if (needsDetach) {
+      v.style.position = 'fixed'
+      v.style.margin = '0'
+      v.style.padding = '0'
+      v.style.border = 'none'
+      v.style.pointerEvents = 'none'
+      document.body.appendChild(v)
+
+      this.syncVideoRect()
+      this.startRectSync()
+    } else {
+      v.style.width = '100%'
+      v.style.height = '100%'
+      this.container.appendChild(v)
+
+    }
+
     this.video = v
+  }
+
+  /** Sincroniza posição/tamanho do <video> fixo com o bounding rect do container. */
+  private syncVideoRect(): void {
+    if (!this.video || !this.container || this.destroyed) return
+    const r = this.container.getBoundingClientRect()
+    const v = this.video
+    v.style.left = `${Math.round(r.left)}px`
+    v.style.top = `${Math.round(r.top)}px`
+    v.style.width = `${Math.round(r.width)}px`
+    v.style.height = `${Math.round(r.height)}px`
+  }
+
+  /** Inicia polling leve de posição (RAF) + ResizeObserver para manter rect sincronizado. */
+  private startRectSync(): void {
+    // ResizeObserver para mudanças de tamanho do container
+    if (typeof ResizeObserver !== 'undefined' && this.container) {
+      this.resizeObserver = new ResizeObserver(() => this.syncVideoRect())
+      this.resizeObserver.observe(this.container)
+    }
+    // RAF polling para mudanças de scroll/layout não captadas pelo ResizeObserver.
+    // Na TV o layout é estático, por isso paramos após estabilizar (~2 s).
+    let frames = 0
+    const maxFrames = 120 // ~2 s a 60 fps
+    const tick = () => {
+      if (this.destroyed || frames >= maxFrames) {
+        this.rectRafId = null
+        return
+      }
+      frames++
+      this.syncVideoRect()
+      this.rectRafId = requestAnimationFrame(tick)
+    }
+    this.rectRafId = requestAnimationFrame(tick)
+  }
+
+  private stopRectSync(): void {
+    if (this.rectRafId != null) {
+      cancelAnimationFrame(this.rectRafId)
+      this.rectRafId = null
+    }
+    try { this.resizeObserver?.disconnect() } catch { /* ignore */ }
+    this.resizeObserver = null
   }
 
   private clearSources(): void {
@@ -81,8 +159,15 @@ export class Html5PlaybackEngine implements PlaybackEngine {
     if (this.destroyed || !this.video) return
     const video = this.video
     this.clearSources()
+    const isTizen = isSamsungTizenLikeRuntime()
 
     if (!isHlsUrl(url)) {
+      video.src = url
+      void video.load()
+      return
+    }
+
+    if (isTizen) {
       video.src = url
       void video.load()
       return
@@ -109,10 +194,36 @@ export class Html5PlaybackEngine implements PlaybackEngine {
     void video.load()
   }
 
+  private attachUnmuteOnFirstUserGesture(): void {
+    if (this.unmuteGestureAttached || this.destroyed) return
+    this.unmuteGestureAttached = true
+    const once = (): void => {
+      if (this.destroyed || !this.video) return
+      this.video.muted = false
+      void this.video.play().catch(() => {
+        /* gesto já permitiu autoplay; falha rara — ignorar */
+      })
+    }
+    window.addEventListener('pointerdown', once, { once: true, capture: true })
+    window.addEventListener('keydown', once, { once: true, capture: true })
+  }
+
   play(): Promise<void> {
     if (this.destroyed || !this.video) return Promise.resolve()
-    return this.video.play().catch((e) => {
-      throw e instanceof Error ? e : new Error(String(e))
+    const video = this.video
+    const playMuted = (): Promise<void> => {
+      video.muted = true
+      return video.play().catch((e) => {
+        throw e instanceof Error ? e : new Error(String(e))
+      })
+    }
+    return video.play().catch((err: unknown) => {
+      if (isAutoplayPolicyError(err) && !video.muted) {
+        return playMuted().then(() => {
+          this.attachUnmuteOnFirstUserGesture()
+        })
+      }
+      throw err instanceof Error ? err : new Error(String(err))
     })
   }
 
@@ -143,6 +254,8 @@ export class Html5PlaybackEngine implements PlaybackEngine {
   destroy(): void {
     if (this.destroyed) return
     this.destroyed = true
+    this.unmuteGestureAttached = false
+    this.stopRectSync()
     this.clearSources()
     if (this.video) {
       this.video.pause()
