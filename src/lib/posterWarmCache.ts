@@ -15,8 +15,16 @@ const inFlight = new Set<string>()
 function warmImage(src: string): Promise<void> {
   return new Promise((resolve) => {
     const img = new Image()
-    img.onload = () => resolve()
-    img.onerror = () => resolve()
+    img.onload = () => {
+      img.onload = null
+      img.onerror = null
+      resolve()
+    }
+    img.onerror = () => {
+      img.onload = null
+      img.onerror = null
+      resolve()
+    }
     img.src = src
   })
 }
@@ -40,7 +48,7 @@ export async function resolvePosterUrl(src: string): Promise<string> {
 /** Pré-aquece uma lista de URLs de poster em paralelo (concurrency limitado). */
 export async function warmPosterUrls(
   urls: readonly string[],
-  options?: { concurrency?: number },
+  options?: { concurrency?: number; signal?: AbortSignal },
 ): Promise<void> {
   const unique = Array.from(
     new Set(urls.map((url) => url.trim()).filter((url) => url.length > 0)),
@@ -52,6 +60,7 @@ export async function warmPosterUrls(
 
   const worker = async (): Promise<void> => {
     while (cursor < unique.length) {
+      if (options?.signal?.aborted) return
       const current = unique[cursor++]
       if (!current) continue
       await warmImage(current).catch(() => { /* best effort */ })

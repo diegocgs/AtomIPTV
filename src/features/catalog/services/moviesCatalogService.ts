@@ -31,6 +31,7 @@ type CacheEntry = { result: MoviesCatalogResult; playlistRevision: string }
 const memoryCache = new Map<string, CacheEntry>()
 
 const moviesRevalidateGen = new Map<string, number>()
+const moviesRevalidateAbort = new Map<string, AbortController>()
 
 function cacheKey(playlist: PlaylistEntity): string {
   return `${playlist.id}:${playlist.updatedAt}`
@@ -186,13 +187,18 @@ async function persistMoviesSnapshot(active: PlaylistEntity, result: MoviesCatal
 
 function scheduleMoviesBackgroundRevalidate(active: PlaylistEntity, revisionKey: string): void {
   const id = active.id
+  // Cancelar revalidação anterior para esta playlist
+  moviesRevalidateAbort.get(id)?.abort()
+  const ac = new AbortController()
+  moviesRevalidateAbort.set(id, ac)
   const gen = (moviesRevalidateGen.get(id) ?? 0) + 1
   moviesRevalidateGen.set(id, gen)
   const apiUrl = buildMoviesCatalogApiUrl(active)
   if (!apiUrl) return
   void (async () => {
     try {
-      const result = await fetchMoviesCatalogFromBackend(apiUrl)
+      const result = await fetchMoviesCatalogFromBackend(apiUrl, ac.signal)
+      if (ac.signal.aborted) return
       if (moviesRevalidateGen.get(id) !== gen) return
       const cur = playlistServiceGetActivePlaylist()
       if (!cur || cur.id !== id || cacheKey(cur) !== revisionKey) return
@@ -202,6 +208,8 @@ function scheduleMoviesBackgroundRevalidate(active: PlaylistEntity, revisionKey:
       dispatchCatalogRefresh({ kind: 'movies', playlistId: id, result })
     } catch {
       /* silencioso */
+    } finally {
+      if (moviesRevalidateAbort.get(id) === ac) moviesRevalidateAbort.delete(id)
     }
   })()
 }

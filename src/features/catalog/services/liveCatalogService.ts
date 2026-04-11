@@ -42,6 +42,7 @@ const memoryCache = new Map<string, CacheEntry>()
 const inflightRequests = new Map<string, Promise<LiveCatalogResult>>()
 
 const liveRevalidateGen = new Map<string, number>()
+const liveRevalidateAbort = new Map<string, AbortController>()
 
 /** Não revalidar em background se o cache tem menos de 5 minutos. */
 const REVALIDATE_STALE_MS = 5 * 60_000
@@ -302,13 +303,17 @@ function scheduleLiveBackgroundRevalidate(active: PlaylistEntity, revisionKey: s
   if (cached && cached.playlistRevision === revisionKey && Date.now() - cached.fetchedAt < REVALIDATE_STALE_MS) {
     return
   }
+  liveRevalidateAbort.get(id)?.abort()
+  const ac = new AbortController()
+  liveRevalidateAbort.set(id, ac)
   const gen = (liveRevalidateGen.get(id) ?? 0) + 1
   liveRevalidateGen.set(id, gen)
   const apiUrl = buildCatalogApiUrl(active)
   if (!apiUrl) return
   void (async () => {
     try {
-      const result = await fetchLiveCatalogFromBackend(apiUrl)
+      const result = await fetchLiveCatalogFromBackend(apiUrl, ac.signal)
+      if (ac.signal.aborted) return
       if (liveRevalidateGen.get(id) !== gen) return
       const cur = playlistServiceGetActivePlaylist()
       if (!cur || cur.id !== id || cacheKey(cur) !== revisionKey) return
@@ -318,6 +323,8 @@ function scheduleLiveBackgroundRevalidate(active: PlaylistEntity, revisionKey: s
       dispatchCatalogRefresh({ kind: 'live', playlistId: id, result })
     } catch {
       /* revalidação silenciosa */
+    } finally {
+      if (liveRevalidateAbort.get(id) === ac) liveRevalidateAbort.delete(id)
     }
   })()
 }

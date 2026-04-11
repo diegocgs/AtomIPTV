@@ -16,15 +16,15 @@ export function usePosterWarmup(
     const end = Math.min(urls.length, start + baseWindow)
     const slice = urls.slice(start, end)
 
-    let cancelled = false
+    const ac = new AbortController()
     const timer = window.setTimeout(() => {
-      if (cancelled) return
-      void warmPosterUrls(slice, { concurrency: runtime === 'tizen' ? 24 : 6 })
+      if (ac.signal.aborted) return
+      void warmPosterUrls(slice, { concurrency: runtime === 'tizen' ? 24 : 6, signal: ac.signal })
     }, runtime === 'tizen' ? 0 : 30)
 
     return () => {
-      cancelled = true
       window.clearTimeout(timer)
+      ac.abort()
     }
   }, [urls, depsKey, focusedIndex])
 }

@@ -11,6 +11,7 @@ import {
 } from '@/services/xtream'
 
 const MOVIE_DETAIL_CACHE_PREFIX = 'iptv-movie-detail-v1:'
+const MOVIE_DETAIL_CACHE_MAX = 200
 const movieDetailMemoryCache = new Map<string, XtreamVodInfoDetail | null>()
 
 /**
@@ -116,6 +117,11 @@ function readMovieDetailCache(cacheKey: string): XtreamVodInfoDetail | null | un
 }
 
 function writeMovieDetailCache(cacheKey: string, data: XtreamVodInfoDetail | null): void {
+  // Evicção LRU simples: remover entradas mais antigas quando o cache ultrapassar o limite
+  if (movieDetailMemoryCache.size >= MOVIE_DETAIL_CACHE_MAX) {
+    const firstKey = movieDetailMemoryCache.keys().next().value
+    if (firstKey !== undefined) movieDetailMemoryCache.delete(firstKey)
+  }
   movieDetailMemoryCache.set(cacheKey, data)
   if (typeof window === 'undefined') return
   try {

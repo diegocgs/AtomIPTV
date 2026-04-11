@@ -28,6 +28,7 @@ type CacheEntry = { result: SeriesCatalogResult; playlistRevision: string }
 const memoryCache = new Map<string, CacheEntry>()
 
 const seriesRevalidateGen = new Map<string, number>()
+const seriesRevalidateAbort = new Map<string, AbortController>()
 
 function cacheKey(playlist: PlaylistEntity): string {
   return `${playlist.id}:${playlist.updatedAt}`
@@ -183,13 +184,17 @@ async function persistSeriesSnapshot(active: PlaylistEntity, result: SeriesCatal
 
 function scheduleSeriesBackgroundRevalidate(active: PlaylistEntity, revisionKey: string): void {
   const id = active.id
+  seriesRevalidateAbort.get(id)?.abort()
+  const ac = new AbortController()
+  seriesRevalidateAbort.set(id, ac)
   const gen = (seriesRevalidateGen.get(id) ?? 0) + 1
   seriesRevalidateGen.set(id, gen)
   const apiUrl = buildSeriesCatalogApiUrl(active)
   if (!apiUrl) return
   void (async () => {
     try {
-      const result = await fetchSeriesCatalogFromBackend(apiUrl)
+      const result = await fetchSeriesCatalogFromBackend(apiUrl, ac.signal)
+      if (ac.signal.aborted) return
       if (seriesRevalidateGen.get(id) !== gen) return
       const cur = playlistServiceGetActivePlaylist()
       if (!cur || cur.id !== id || cacheKey(cur) !== revisionKey) return
@@ -199,6 +204,8 @@ function scheduleSeriesBackgroundRevalidate(active: PlaylistEntity, revisionKey:
       dispatchCatalogRefresh({ kind: 'series', playlistId: id, result })
     } catch {
       /* silencioso */
+    } finally {
+      if (seriesRevalidateAbort.get(id) === ac) seriesRevalidateAbort.delete(id)
     }
   })()
 }
