@@ -23,6 +23,7 @@ import {
 import { FocusPlan, TVFocusable } from '@/lib/tvFocus'
 import { buildLiveTvShellOnlyPlan } from '@/lib/tvFocus/buildLiveTvShellOnlyPlan'
 import {
+  isRemoteBackKey,
   isRemoteEnterKey,
   isSamsungTizenLikeRuntime,
 } from '@/lib/tvFocus/tvRemoteKeys'
@@ -264,12 +265,15 @@ export function LiveTvPage() {
 
   const openPlayingChannelRef = useRef<() => void>(() => {})
   const toggleFavoriteRef = useRef<() => void>(() => {})
+  const toggleFavoriteByIdRef = useRef<(channelId: string) => void>(() => {})
 
   const firstMainFocusId = useMemo(() => {
     if (visibleChannels.length > 0) return 'lch-0'
+    // Se a busca está activa e não há resultados, manter 'lch-0' para não roubar foco do input
+    if (channelQuery.trim()) return 'lch-0'
     if (liveCategoriesUi.length > 0) return 'lcat-0'
     return 'hdr-profile'
-  }, [visibleChannels.length, liveCategoriesUi.length])
+  }, [visibleChannels.length, liveCategoriesUi.length, channelQuery])
 
   const plan = useMemo(
     () => buildLiveTvShellOnlyPlan(firstMainFocusId),
@@ -297,6 +301,7 @@ export function LiveTvPage() {
     channelsNavFocus,
     onCategorySearchFocus,
     onChannelSearchFocus,
+    focusChannelList,
   } = useLiveTvNavigation({
     channelSearchRef,
     categorySearchRef,
@@ -314,8 +319,10 @@ export function LiveTvPage() {
     onOpenPlayingChannel: () => openPlayingChannelRef.current(),
     onOpenChannelById: (id: string) => openChannelByIdRef.current(id),
     onToggleFavorite: () => toggleFavoriteRef.current(),
+    onToggleFavoriteById: (id: string) => toggleFavoriteByIdRef.current(id),
     onOpenEpgPlaceholder: openEpgPlaceholder,
     clearChannelSearch: () => setChannelQuery(''),
+    isFullscreen,
   })
   const useCssFocusOnly = isSamsungTizenLikeRuntime()
 
@@ -379,7 +386,8 @@ export function LiveTvPage() {
     isFullscreenRef.current = false
     setIsFullscreen(false)
     exitFullscreenDisplay()
-  }, [exitFullscreenDisplay])
+    focusChannelList()
+  }, [exitFullscreenDisplay, focusChannelList])
 
   const openChannelById = useCallback((channelId: string) => {
     const ch = channels.find((row) => row.id === channelId)
@@ -467,17 +475,47 @@ export function LiveTvPage() {
     setFavoritesRevision((value) => value + 1)
   }, [previewChannel, activePlaylistId])
 
+  const toggleFavoriteById = useCallback((channelId: string) => {
+    if (!activePlaylistId) return
+    const ch = visibleChannels.find((c) => c.id === channelId)
+    if (!ch) return
+    toggleLiveChannelFavorite({
+      playlistId: activePlaylistId,
+      channelId: ch.id,
+      name: ch.name,
+      logo: ch.logo ?? '',
+    })
+    setFavoritesRevision((value) => value + 1)
+  }, [activePlaylistId, visibleChannels])
+
   useEffect(() => {
     openPlayingChannelRef.current = openPlayingChannel
     toggleFavoriteRef.current = toggleFavorite
-  }, [openPlayingChannel, toggleFavorite])
+    toggleFavoriteByIdRef.current = toggleFavoriteById
+  }, [openPlayingChannel, toggleFavorite, toggleFavoriteById])
 
-  // Fullscreen: Back key handled via TvFocusProvider's tv-modal-escape (data-tv-modal-open on backdrop)
-  useEffect(() => {
+  // Fullscreen: Back key exits fullscreen.
+  // useLayoutEffect garante que este listener regista ANTES do TvFocusProvider (useEffect),
+  // assim na fase de captura ele dispara primeiro e stopImmediatePropagation impede o onBack → navigate('/home').
+  useLayoutEffect(() => {
     if (!isFullscreen) return
     const onEscape = () => exitFullscreen()
+    const onKey = (e: KeyboardEvent) => {
+      if (!isFullscreenRef.current) return
+      if (isRemoteBackKey(e)) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        exitFullscreen()
+      }
+    }
+    // Shell Tizen envia Back via postMessage (iptv-shell-back) → TvFocusProvider dispara tv-modal-escape
     window.addEventListener('tv-modal-escape', onEscape)
-    return () => window.removeEventListener('tv-modal-escape', onEscape)
+    // Keydown directo para browsers e quando o evento chega ao iframe
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('tv-modal-escape', onEscape)
+      window.removeEventListener('keydown', onKey, true)
+    }
   }, [isFullscreen, exitFullscreen])
 
   // Fullscreen: Enter/Space toggles play/pause

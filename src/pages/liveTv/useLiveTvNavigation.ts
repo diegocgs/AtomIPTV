@@ -6,6 +6,7 @@ import { tvFocusIdStore } from '@/lib/tvFocus/tvFocusIdStore'
 import {
   isRemoteBackKey,
   isRemoteEnterKey,
+  isRemoteYellowKey,
   isSamsungTizenLikeRuntime,
   mapRemoteKeyToDirection,
 } from '@/lib/tvFocus/tvRemoteKeys'
@@ -73,9 +74,12 @@ type Params = {
   onOpenPlayingChannel: () => void
   onOpenChannelById: (id: string) => void
   onToggleFavorite: () => void
+  onToggleFavoriteById?: (channelId: string) => void
   onOpenEpgPlaceholder: () => void
   /** Igual ao nexus: Enter na coluna categorias limpa a pesquisa de canais. */
   clearChannelSearch?: () => void
+  /** True enquanto o fullscreen estiver activo — para ignorar tv-page-back. */
+  isFullscreen?: boolean
 }
 
 export type LiveTvNavigationState = {
@@ -85,11 +89,14 @@ export type LiveTvNavigationState = {
   channelsNavFocus: 'search' | 'list'
   onCategorySearchFocus: () => void
   onChannelSearchFocus: () => void
+  focusChannelList: () => void
 }
 
 const REMOTE_REPEAT_MIN_INTERVAL_MS = 16
 const HOLD_REPEAT_INITIAL_DELAY_MS = 400
 const HOLD_REPEAT_INTERVAL_MS = 120
+/** Tempo mínimo (ms) de pressão em Enter para activar favorito (long-press). */
+const LONG_PRESS_ENTER_MS = 1200
 
 /**
  * D-pad alinhado a `nexus-vision-prime/src/pages/LiveTV.tsx`:
@@ -113,8 +120,10 @@ export function useLiveTvNavigation({
   onOpenPlayingChannel,
   onOpenChannelById,
   onToggleFavorite,
+  onToggleFavoriteById,
   onOpenEpgPlaceholder,
   clearChannelSearch,
+  isFullscreen,
 }: Params): LiveTvNavigationState {
   const { setFocusedId } = useTvFocus()
   const location = useLocation()
@@ -150,8 +159,20 @@ export function useLiveTvNavigation({
   const onOpenPlayingChannelRef = useRef(onOpenPlayingChannel)
   const onOpenChannelByIdRef = useRef(onOpenChannelById)
   const onToggleFavoriteRef = useRef(onToggleFavorite)
+  const onToggleFavoriteByIdRef = useRef(onToggleFavoriteById)
   const onOpenEpgPlaceholderRef = useRef(onOpenEpgPlaceholder)
   const clearChannelSearchRef = useRef(clearChannelSearch)
+  const isFullscreenRef = useRef(!!isFullscreen)
+  /** Timestamp de quando o fullscreen saiu — para ignorar tv-page-back logo após. */
+  const fullscreenExitedAtRef = useRef(0)
+  /** Long-press Enter: true enquanto Enter está pressionado. */
+  const enterPressedRef = useRef(false)
+  /** Long-press Enter: timer que dispara favorito após LONG_PRESS_ENTER_MS. */
+  const enterLongTimerRef = useRef<number | null>(null)
+  /** Long-press Enter: closure que executa a acção normal de Enter (short press). */
+  const enterShortActionRef = useRef<(() => void) | null>(null)
+  /** Long-press Enter: true se o long-press já disparou (impede short action no keyup). */
+  const enterLongFiredRef = useRef(false)
   const syncFocusedCategoryForRender = useCallback((next: number) => {
     if (renderFocusState) {
       flushSync(() => {
@@ -233,6 +254,10 @@ export function useLiveTvNavigation({
   }, [onToggleFavorite])
 
   useEffect(() => {
+    onToggleFavoriteByIdRef.current = onToggleFavoriteById
+  }, [onToggleFavoriteById])
+
+  useEffect(() => {
     onOpenEpgPlaceholderRef.current = onOpenEpgPlaceholder
   }, [onOpenEpgPlaceholder])
 
@@ -241,25 +266,56 @@ export function useLiveTvNavigation({
   }, [clearChannelSearch])
 
   useEffect(() => {
+    const wasFullscreen = isFullscreenRef.current
+    isFullscreenRef.current = !!isFullscreen
+    if (wasFullscreen && !isFullscreen) {
+      fullscreenExitedAtRef.current = Date.now()
+    }
+  }, [isFullscreen])
+
+  useEffect(() => {
     syncFocusedCategoryForRender(activeCatIndex)
     focusedCategoryRef.current = activeCatIndex
   }, [activeCatIndex, syncFocusedCategoryForRender])
 
-  /** Lista ou preview guardado mudou: alinhar foco ao canal em preview na vista actual (ou 0). Não corre só ao mover o D-pad. */
+  /** Referência do último previewChannelId processado — para distinguir mudança de preview vs. mudança de lista. */
+  const lastAppliedPreviewRef = useRef<string | null>(null)
+
+  /** Lista ou preview guardado mudou: alinhar foco ao canal em preview na vista actual (ou 0). */
   useEffect(() => {
     if (!isLive || channelCount === 0) return
-    const idx =
-      previewChannelId != null
-        ? visibleChannelIds.findIndex((id) => id === previewChannelId)
-        : -1
-    const start = idx >= 0 ? idx : 0
-    const row = Math.min(start, channelCount - 1)
-    focusedChannelRef.current = row
-    syncFocusedChannelForRender(row)
-    if (activePanelRef.current === 'categories') return
-    const id = `lch-${row}`
-    setFocusedId(id)
-    setLastChannelFocusId(id)
+
+    const previewChanged = previewChannelId !== lastAppliedPreviewRef.current
+    lastAppliedPreviewRef.current = previewChannelId
+
+    if (previewChanged) {
+      // Preview mudou (Enter na lista, restore de sessão): saltar para o canal do preview
+      const idx =
+        previewChannelId != null
+          ? visibleChannelIds.findIndex((id) => id === previewChannelId)
+          : -1
+      const start = idx >= 0 ? idx : 0
+      const row = Math.min(start, channelCount - 1)
+      focusedChannelRef.current = row
+      syncFocusedChannelForRender(row)
+      if (activePanelRef.current === 'categories') return
+      if (channelsNavFocusRef.current === 'search') return
+      const id = `lch-${row}`
+      setFocusedId(id)
+      setLastChannelFocusId(id)
+    } else {
+      // Lista mudou por outro motivo (favorito, filtro): manter posição, apenas ajustar limites
+      const clamped = Math.min(focusedChannelRef.current, channelCount - 1)
+      if (clamped !== focusedChannelRef.current) {
+        focusedChannelRef.current = clamped
+        syncFocusedChannelForRender(clamped)
+        if (activePanelRef.current !== 'categories' && channelsNavFocusRef.current !== 'search') {
+          const id = `lch-${clamped}`
+          setFocusedId(id)
+          setLastChannelFocusId(id)
+        }
+      }
+    }
   }, [isLive, channelCount, visibleListToken, previewChannelId, visibleChannelIds, setFocusedId, setLastChannelFocusId, syncFocusedChannelForRender])
 
   useEffect(() => {
@@ -611,13 +667,17 @@ export function useLiveTvNavigation({
         if (document.activeElement === categorySearchRef?.current) {
           e.preventDefault()
           e.stopPropagation()
-          focusHeaderFirstControl()
+          setFocusedId('hdr-profile')
+          categorySearchRef?.current?.blur()
+          window.setTimeout(() => focusElementByFocusId('hdr-profile'), 0)
           return
         }
         if (document.activeElement === channelSearchRef.current) {
           e.preventDefault()
           e.stopPropagation()
-          focusHeaderFirstControl()
+          setFocusedId('hdr-profile')
+          channelSearchRef.current?.blur()
+          window.setTimeout(() => focusElementByFocusId('hdr-profile'), 0)
           return
         }
       }
@@ -634,6 +694,50 @@ export function useLiveTvNavigation({
       }
 
       if (isRemoteBackKey(e)) {
+        // preview → canais → categorias → deixar passar (Home)
+        if (panel === 'preview') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setActivePanel('channels')
+          setChannelsNavFocus('list')
+          const idx = Math.min(focusedChannelRef.current, Math.max(0, chCount - 1))
+          focusedChannelRef.current = idx
+          syncFocusedChannelForRender(idx)
+          const id = `lch-${idx}`
+          setFocusedId(id)
+          setLastChannelFocusIdRef.current(id)
+          return
+        }
+        if (panel === 'channels') {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          setActivePanel('categories')
+          setChannelsNavFocus('list')
+          const catIdx = Math.min(activeCatIndexRef.current, Math.max(0, catCount - 1))
+          focusedCategoryRef.current = catIdx
+          syncFocusedCategoryForRender(catIdx)
+          if (catCount > 0) {
+            const id = `lcat-${catIdx}`
+            setFocusedId(id)
+            setLastCategoryFocusIdRef.current(id)
+          }
+          return
+        }
+        // panel === 'categories': deixar passar para o TvFocusProvider → onBack → Home
+        return
+      }
+
+      if (isRemoteYellowKey(e)) {
+        e.preventDefault()
+        e.stopPropagation()
+        if (panel === 'channels' && chCount > 0) {
+          const chId = visibleChannelIdsRef.current[focusedChannelRef.current]
+          if (chId) {
+            onToggleFavoriteByIdRef.current?.(chId)
+            return
+          }
+        }
+        onToggleFavoriteRef.current()
         return
       }
 
@@ -646,95 +750,218 @@ export function useLiveTvNavigation({
       }
 
       if (isRemoteEnterKey(e)) {
-        const focusedId = tvFocusIdStore.get()
-        if (focusedId?.startsWith('lcat-') && catCount > 0) {
+        // Long-press Enter: no keydown, agenda timer de 2s para favoritar.
+        // Se soltar antes dos 2s (keyup), cancela o timer e executa acção normal.
+        // Se o timer disparar (2s), favorita imediatamente sem esperar keyup.
+        if (e.repeat) {
           e.preventDefault()
           e.stopPropagation()
+          return
+        }
+
+        e.preventDefault()
+        e.stopPropagation()
+
+        // Limpar timer anterior (safety)
+        if (enterLongTimerRef.current != null) {
+          window.clearTimeout(enterLongTimerRef.current)
+          enterLongTimerRef.current = null
+        }
+        enterPressedRef.current = true
+        enterLongFiredRef.current = false
+
+        // Determinar acção de long-press (favorito) para o contexto actual
+        const longPressAction = (): void => {
+          if (panel === 'channels' && chCount > 0) {
+            const chId = visibleChannelIdsRef.current[focusedChannelRef.current]
+            if (chId) onToggleFavoriteByIdRef.current?.(chId)
+          } else if (panel === 'preview') {
+            onToggleFavoriteRef.current()
+          }
+        }
+
+        // Agendar long-press: dispara após LONG_PRESS_ENTER_MS
+        enterLongTimerRef.current = window.setTimeout(() => {
+          enterLongTimerRef.current = null
+          enterLongFiredRef.current = true
+          enterShortActionRef.current = null
+          longPressAction()
+        }, LONG_PRESS_ENTER_MS)
+
+        // Capturar a acção normal como closure para executar no keyup (short press)
+        const focusedId = tvFocusIdStore.get()
+        if (focusedId?.startsWith('lcat-') && catCount > 0) {
           const parsed = Number(focusedId.slice(5))
           const nextCat = Number.isFinite(parsed) ? parsed : focusedCategoryRef.current
-          focusedCategoryRef.current = Math.max(0, Math.min(nextCat, Math.max(0, catCount - 1)))
-          clearChannelSearchRef.current?.()
-          flushSync(() => setActivePanel('channels'))
-          setChannelsNavFocus('list')
-          setActiveCatIndexRef.current(focusedCategoryRef.current)
+          const clampedCat = Math.max(0, Math.min(nextCat, Math.max(0, catCount - 1)))
+          enterShortActionRef.current = () => {
+            focusedCategoryRef.current = clampedCat
+            clearChannelSearchRef.current?.()
+            flushSync(() => setActivePanel('channels'))
+            setChannelsNavFocus('list')
+            setActiveCatIndexRef.current(clampedCat)
+          }
           return
         }
 
         if (focusedId?.startsWith('lch-') && chCount > 0) {
-          e.preventDefault()
-          e.stopPropagation()
           const parsed = Number(focusedId.slice(4))
           const nextChannel = Number.isFinite(parsed) ? parsed : focusedChannelRef.current
-          focusedChannelRef.current = Math.max(0, Math.min(nextChannel, Math.max(0, chCount - 1)))
-          const ch = visibleChannelIdsRef.current[focusedChannelRef.current]
-          if (!ch) return
-          if (ch !== previewChannelIdRef.current) {
-            previewChannelIdRef.current = ch
-            setPreviewChannelIdRef.current(ch)
-          } else {
-            onOpenChannelByIdRef.current(ch)
-          }
+          const clampedCh = Math.max(0, Math.min(nextChannel, Math.max(0, chCount - 1)))
+          const chId = visibleChannelIdsRef.current[clampedCh]
+          enterShortActionRef.current = chId ? () => {
+            focusedChannelRef.current = clampedCh
+            if (chId !== previewChannelIdRef.current) {
+              previewChannelIdRef.current = chId
+              setPreviewChannelIdRef.current(chId)
+            } else {
+              onOpenChannelByIdRef.current(chId)
+            }
+          } : null
           return
         }
 
         if (focusedId?.startsWith('lpv-') && chCount > 0) {
-          e.preventDefault()
-          e.stopPropagation()
           const z = Number(focusedId.slice(4))
-          if (z === PREVIEW_FOCUS_VIDEO) onOpenPlayingChannelRef.current()
-          else if (z === PREVIEW_FOCUS_FAVORITE) onToggleFavoriteRef.current()
-          else if (z === PREVIEW_FOCUS_EPG) onOpenEpgPlaceholderRef.current()
+          enterShortActionRef.current = () => {
+            if (z === PREVIEW_FOCUS_VIDEO) onOpenPlayingChannelRef.current()
+            else if (z === PREVIEW_FOCUS_FAVORITE) onToggleFavoriteRef.current()
+            else if (z === PREVIEW_FOCUS_EPG) onOpenEpgPlaceholderRef.current()
+          }
           return
         }
 
         if (panel === 'preview' && chCount > 0) {
-          e.preventDefault()
-          e.stopPropagation()
-          if (activateCurrentTvTarget(document.activeElement)) return
+          if (activateCurrentTvTarget(document.activeElement)) {
+            enterPressedRef.current = false
+            if (enterLongTimerRef.current != null) { window.clearTimeout(enterLongTimerRef.current); enterLongTimerRef.current = null }
+            enterShortActionRef.current = null
+            return
+          }
           const z = previewFocusRef.current
-          if (z === PREVIEW_FOCUS_VIDEO) onOpenPlayingChannelRef.current()
-          else if (z === PREVIEW_FOCUS_FAVORITE) onToggleFavoriteRef.current()
-          else if (z === PREVIEW_FOCUS_EPG) onOpenEpgPlaceholderRef.current()
+          enterShortActionRef.current = () => {
+            if (z === PREVIEW_FOCUS_VIDEO) onOpenPlayingChannelRef.current()
+            else if (z === PREVIEW_FOCUS_FAVORITE) onToggleFavoriteRef.current()
+            else if (z === PREVIEW_FOCUS_EPG) onOpenEpgPlaceholderRef.current()
+          }
           return
         }
 
         if (panel === 'categories' && catCount > 0) {
-          e.preventDefault()
-          e.stopPropagation()
-          if (activateCurrentTvTarget(document.activeElement)) return
-          clearChannelSearchRef.current?.()
-          flushSync(() => setActivePanel('channels'))
-          setChannelsNavFocus('list')
-          setActiveCatIndexRef.current(focusedCategoryRef.current)
+          if (activateCurrentTvTarget(document.activeElement)) {
+            enterPressedRef.current = false
+            if (enterLongTimerRef.current != null) { window.clearTimeout(enterLongTimerRef.current); enterLongTimerRef.current = null }
+            enterShortActionRef.current = null
+            return
+          }
+          enterShortActionRef.current = () => {
+            clearChannelSearchRef.current?.()
+            flushSync(() => setActivePanel('channels'))
+            setChannelsNavFocus('list')
+            setActiveCatIndexRef.current(focusedCategoryRef.current)
+          }
           return
         }
         if (panel === 'channels' && chCount > 0) {
-          e.preventDefault()
-          e.stopPropagation()
           const ch = visibleChannelIdsRef.current[focusedChannelRef.current]
-          if (!ch) return
-          if (ch !== previewChannelIdRef.current) {
-            previewChannelIdRef.current = ch
-            setPreviewChannelIdRef.current(ch)
-          } else {
-            onOpenChannelByIdRef.current(ch)
-          }
+          enterShortActionRef.current = ch ? () => {
+            if (ch !== previewChannelIdRef.current) {
+              previewChannelIdRef.current = ch
+              setPreviewChannelIdRef.current(ch)
+            } else {
+              onOpenChannelByIdRef.current(ch)
+            }
+          } : null
+          return
         }
+
+        // Nenhuma acção identificada — cancelar timer
+        enterPressedRef.current = false
+        if (enterLongTimerRef.current != null) { window.clearTimeout(enterLongTimerRef.current); enterLongTimerRef.current = null }
+        enterShortActionRef.current = null
       }
     }
 
     window.addEventListener('keydown', onKeyDown, true)
+    const clearEnterLongPress = () => {
+      enterPressedRef.current = false
+      if (enterLongTimerRef.current != null) {
+        window.clearTimeout(enterLongTimerRef.current)
+        enterLongTimerRef.current = null
+      }
+      enterShortActionRef.current = null
+      enterLongFiredRef.current = false
+    }
+
     const onKeyUp = (e: KeyboardEvent) => {
+      // Long-press Enter: se soltar antes de 2s → acção normal; se já disparou → ignorar
+      if (isRemoteEnterKey(e) && enterPressedRef.current) {
+        const alreadyFired = enterLongFiredRef.current
+        const shortAction = enterShortActionRef.current
+        clearEnterLongPress()
+        if (!alreadyFired) {
+          // Short press → executar acção normal
+          shortAction?.()
+        }
+        return
+      }
       const dir = mapRemoteKeyToDirection(e)
       if (!dir) return
       if (holdDirectionRef.current === dir) clearHoldRepeat()
     }
-    const onWindowBlur = () => clearHoldRepeat()
+    const onWindowBlur = () => {
+      clearHoldRepeat()
+      clearEnterLongPress()
+    }
+    // Back via postMessage/tizenhwkey: TvFocusProvider dispara tv-page-back (cancelable)
+    // preview → canais → categorias → deixar passar (Home)
+    const onPageBack = (ev: Event) => {
+      if (!isLive) return
+      // Ignorar tv-page-back logo após sair do fullscreen (< 500ms) — evita que um
+      // segundo evento Back (keydown após tizenhwkey) mova de channels → categories.
+      if (isFullscreenRef.current || Date.now() - fullscreenExitedAtRef.current < 500) {
+        ev.preventDefault()
+        return
+      }
+      const panel = activePanelRef.current
+      const chCount = channelCountRef.current
+      const catCount = categoryCountRef.current
+      if (panel === 'preview') {
+        ev.preventDefault()
+        setActivePanel('channels')
+        setChannelsNavFocus('list')
+        const idx = Math.min(focusedChannelRef.current, Math.max(0, chCount - 1))
+        focusedChannelRef.current = idx
+        syncFocusedChannelForRender(idx)
+        const id = `lch-${idx}`
+        setFocusedId(id)
+        setLastChannelFocusIdRef.current(id)
+        return
+      }
+      if (panel === 'channels') {
+        ev.preventDefault()
+        setActivePanel('categories')
+        setChannelsNavFocus('list')
+        const catIdx = Math.min(activeCatIndexRef.current, Math.max(0, catCount - 1))
+        focusedCategoryRef.current = catIdx
+        syncFocusedCategoryForRender(catIdx)
+        if (catCount > 0) {
+          const id = `lcat-${catIdx}`
+          setFocusedId(id)
+          setLastCategoryFocusIdRef.current(id)
+        }
+        return
+      }
+      // panel === 'categories': não prevenir → TvFocusProvider chama onBack → Home
+    }
+
+    window.addEventListener('tv-page-back', onPageBack)
     window.addEventListener('keyup', onKeyUp, true)
     window.addEventListener('blur', onWindowBlur)
     document.addEventListener('visibilitychange', onWindowBlur)
     return () => {
       clearHoldRepeat()
+      window.removeEventListener('tv-page-back', onPageBack)
       window.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('keyup', onKeyUp, true)
       window.removeEventListener('blur', onWindowBlur)
@@ -752,6 +979,16 @@ export function useLiveTvNavigation({
     setChannelsNavFocus('search')
   }, [])
 
+  /** Força o foco de volta à lista de canais (ex: ao sair do fullscreen). */
+  const focusChannelList = useCallback(() => {
+    setActivePanel('channels')
+    setChannelsNavFocus('list')
+    const idx = focusedChannelRef.current
+    const id = `lch-${idx}`
+    setFocusedId(id)
+    setLastChannelFocusIdRef.current(id)
+  }, [setFocusedId])
+
   return {
     focusedChannelIndex,
     focusedCategoryIndex,
@@ -759,5 +996,6 @@ export function useLiveTvNavigation({
     channelsNavFocus,
     onCategorySearchFocus,
     onChannelSearchFocus,
+    focusChannelList,
   }
 }

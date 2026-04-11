@@ -16,8 +16,25 @@ export function buildLiveStreamHlsUrl(baseUrl, username, password, streamId) {
   return `${base}/live/${u}/${p}/${streamId}.m3u8`
 }
 
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+function iptvHeaders(url) {
+  try {
+    const origin = new URL(url).origin
+    return {
+      'User-Agent': BROWSER_UA,
+      Referer: `${origin}/`,
+      Accept: 'application/json, text/plain, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+    }
+  } catch {
+    return { 'User-Agent': BROWSER_UA }
+  }
+}
+
 async function xtreamFetchJson(url) {
-  const res = await fetch(url, { method: 'GET', redirect: 'follow' })
+  const res = await fetch(url, { method: 'GET', redirect: 'follow', headers: iptvHeaders(url) })
   if (!res.ok) {
     const hint = await res.text().catch(() => '')
     throw new Error(`Xtream HTTP ${res.status}${hint ? ` — ${hint.slice(0, 200)}` : ''}`)

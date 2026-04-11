@@ -3,6 +3,7 @@ import { normalizeCategoryDisplayName } from '@/lib/categoryDisplay';
 import { xtreamUrlMatchesViteDevProxyTarget } from '@/lib/xtreamViteDevProxyTarget';
 import { buildBackendProxyUrl, getBackendApiBase } from '@/lib/backendApi';
 import { proxyClientGet } from '@/lib/proxyClientGet';
+import { isSamsungTizenLikeRuntime } from '@/lib/tvFocus/tvRemoteKeys';
 
 export interface XtreamCredentials {
   name: string;
@@ -879,6 +880,21 @@ const xtreamFetch = async (url: string): Promise<Response> => {
       } catch {
         /* proxy remoto */
       }
+    }
+  }
+
+  /**
+   * Tizen WebView: fetch direto ao painel Xtream antes de tentar o proxy Lambda.
+   * Muitos painéis IPTV usam Cloudflare que bloqueia IPs de datacenter (AWS).
+   * A TV Samsung está em rede residencial, então o fetch direto passa sem 403.
+   * O WebView Tizen (file:// ou app://) não aplica CORS estritamente.
+   */
+  if (isSamsungTizenLikeRuntime() && isHttp) {
+    try {
+      const r = await fetch(url, { method: 'GET', redirect: 'follow' });
+      if (r.ok) return r;
+    } catch {
+      /* cair para proxy Lambda */
     }
   }
 

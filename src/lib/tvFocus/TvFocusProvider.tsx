@@ -66,6 +66,10 @@ export function TvFocusProvider({
       window.dispatchEvent(new CustomEvent('tv-modal-escape'))
       return
     }
+    // Permitir que páginas interceptem o Back antes de navegar (ex.: Live TV: preview→canais→categorias)
+    const ev = new CustomEvent('tv-page-back', { cancelable: true })
+    window.dispatchEvent(ev)
+    if (ev.defaultPrevented) return
     onBackRef.current?.()
   }, [])
 
@@ -263,6 +267,12 @@ export function TvFocusProvider({
       const data = event.data
       if (!data || typeof data !== 'object') return
       if ((data as { type?: string }).type !== 'iptv-shell-back') return
+      // Debounce: o shell pode enviar múltiplos postMessages para o mesmo Back press
+      // (tizenhwkey + keydown). Sem debounce, o segundo chega após React remover o modal
+      // e handleBackAction cai no onBack → navigate('/home').
+      const nowBack = Date.now()
+      if (nowBack - lastBackMsRef.current < 300) return
+      lastBackMsRef.current = nowBack
       handleBackAction()
     }
 

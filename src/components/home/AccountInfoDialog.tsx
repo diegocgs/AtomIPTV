@@ -155,6 +155,19 @@ export function AccountInfoDialog({ onClose }: Props) {
       if (!creds && !cancelled) {
         setCredLoadingMsg('Fetching playlist…')
         creds = await tryDeriveXtreamCredentialsFromM3uFetchAsync(m3uUrl, activePlaylist.name)
+        // DEV fallback: Lambda pode falhar (Cloudflare 403); usar proxy inline do Vite.
+        if (!creds && !cancelled && import.meta.env.DEV) {
+          try {
+            const devRes = await fetch(`/__iptv_dev/fetch?url=${encodeURIComponent(m3uUrl)}`, {
+              method: 'GET', cache: 'no-store',
+            })
+            if (devRes.ok) {
+              const { tryDeriveXtreamCredsFromM3uText } = await import('@/lib/playlistsStorage')
+              const text = await devRes.text()
+              creds = tryDeriveXtreamCredsFromM3uText(text, activePlaylist.name)
+            }
+          } catch { /* fallthrough */ }
+        }
       }
 
       if (!cancelled) {

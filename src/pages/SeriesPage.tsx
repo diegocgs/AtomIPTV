@@ -10,6 +10,7 @@ import { useSeriesCatalog } from '@/features/catalog'
 import { useVisibleGridSlice } from '@/hooks/useVisibleGridSlice'
 import { usePosterWarmup } from '@/hooks/usePosterWarmup'
 import { FocusPlan, TVFocusable, buildVodCatalogShellPlan, isSamsungTizenLikeRuntime } from '@/lib/tvFocus'
+import { tvFocusIdStore } from '@/lib/tvFocus/tvFocusIdStore'
 import { useVodCatalogNavigation } from '@/pages/vod/useVodCatalogNavigation'
 import { enrichXtreamSeriesDetail, type SeriesDetailMeta } from '@/lib/vodDetailEnrichment'
 import { resolveSeriesPlayUrl } from '@/lib/vodPlaybackResolve'
@@ -59,6 +60,18 @@ export default function SeriesPage() {
   const [seriesApiDetail, setSeriesApiDetail] = useState<SeriesDetailMeta | null>(null)
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [seriesPlayPending, setSeriesPlayPending] = useState(false)
+  const modalFocusTimerRef = useRef<number | null>(null)
+
+  // Limpar timeout de restauração de foco ao desmontar — evita que um setTimeout
+  // stale corrompa o tvFocusIdStore depois de navegar para outra página.
+  useEffect(() => {
+    return () => {
+      if (modalFocusTimerRef.current != null) {
+        clearTimeout(modalFocusTimerRef.current)
+        modalFocusTimerRef.current = null
+      }
+    }
+  }, [])
 
   // playlist_id exclusivo para favoritos de séries — prefixo 'series:' evita colisão
   // com canais ao vivo que usam o mesmo UUID de playlist como playlist_id.
@@ -280,6 +293,16 @@ export default function SeriesPage() {
           setDetail(null)
           setSeriesApiDetail(null)
           setSeriesDetailLoading(false)
+          // Restaurar foco ao grid item após fechar o modal.
+          const restoreId = `series-mv-${focusedItemIndex}`
+          tvFocusIdStore.set(restoreId)
+          if (modalFocusTimerRef.current != null) clearTimeout(modalFocusTimerRef.current)
+          modalFocusTimerRef.current = window.setTimeout(() => {
+            modalFocusTimerRef.current = null
+            if (tvFocusIdStore.get() !== restoreId) return
+            const el = document.getElementById(`focus-${restoreId}`)
+            if (el instanceof HTMLElement) el.focus({ preventScroll: true })
+          }, 150)
         }}
         kind="series"
         title={detail?.name ?? ''}
@@ -326,7 +349,7 @@ export default function SeriesPage() {
                   returnTo: '/series',
                 },
               })
-              setDetail(null)
+              // Não fechar o modal — a navegação desmonta o SeriesPage inteiro.
             }
           } finally {
             setSeriesPlayPending(false)

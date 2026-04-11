@@ -205,6 +205,7 @@ export async function enrichXtreamMovieDetail(
 export async function prefetchXtreamMovieDetails(
   vodIds: readonly number[],
   sourceType: MoviesCatalogSourceKind,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (sourceType !== 'xtream') return
   const unique = Array.from(new Set(vodIds.filter((id) => Number.isFinite(id))))
@@ -215,11 +216,12 @@ export async function prefetchXtreamMovieDetails(
 
   const worker = async (): Promise<void> => {
     while (cursor < unique.length) {
+      if (signal?.aborted) return
       const vodId = unique[cursor]
       cursor += 1
       if (vodId == null) continue
       try {
-        await enrichXtreamMovieDetail(vodId, sourceType)
+        await enrichXtreamMovieDetail(vodId, sourceType, signal)
       } catch {
         /* ignore prefetch failures */
       }

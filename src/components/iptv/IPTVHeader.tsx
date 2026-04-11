@@ -207,14 +207,11 @@ const IPTVHeader: React.FC = () => {
             className="flex items-center gap-3 rounded-lg px-3 py-2"
             focusScale={false}
           >
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center neon-text">
-                <span className="font-display font-bold text-primary text-lg">TV</span>
-              </div>
-              <span className="font-display font-bold text-xl text-foreground tracking-tight">
-                Stream<span className="text-primary">Pro</span>
-              </span>
-            </div>
+            <img
+              src="/atom-logo.png"
+              alt="Atom IPTV"
+              className="h-10 w-auto object-contain"
+            />
           </TVFocusable>
           {TV_QUICK_TEST && !isHome ? (
             <TVFocusable

@@ -8,6 +8,7 @@ interface Props {
 }
 
 function attemptExitApp(): void {
+  // 1. Tentar tizen.application.exit() diretamente (caso o SPA corra no top-level)
   try {
     const tizen = (window as Window & { tizen?: { application?: { getCurrentApplication?: () => { exit?: () => void } } } }).tizen
     if (typeof tizen?.application?.getCurrentApplication === 'function') {
@@ -20,6 +21,24 @@ function attemptExitApp(): void {
   } catch {
     // ignore
   }
+
+  // 2. Dentro de iframe: enviar postMessage ao shell Tizen para que ele faça exit
+  try {
+    if (window.self !== window.top && window.parent) {
+      window.parent.postMessage({ type: 'iptv-shell-exit' }, '*')
+      return
+    }
+  } catch {
+    // cross-origin — tentar mesmo assim
+    try {
+      window.parent.postMessage({ type: 'iptv-shell-exit' }, '*')
+      return
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. Fallback
   const nav = window.navigator as Navigator & { app?: { exitApp?: () => void } }
   if (typeof nav.app?.exitApp === 'function') {
     nav.app.exitApp()

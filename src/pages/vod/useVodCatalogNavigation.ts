@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { APP_HDR, useTvFocus } from '@/lib/tvFocus'
-import { isRemoteBackKey, isRemoteEnterKey, isSamsungTizenLikeRuntime, mapRemoteKeyToDirection } from '@/lib/tvFocus/tvRemoteKeys'
+import { tvFocusIdStore } from '@/lib/tvFocus/tvFocusIdStore'
+import { isRemoteBackKey, isRemoteEnterKey, isRemoteYellowKey, isSamsungTizenLikeRuntime, mapRemoteKeyToDirection } from '@/lib/tvFocus/tvRemoteKeys'
 
 export type VodCatalogPanel = 'categories' | 'grid'
 const REMOTE_REPEAT_MIN_INTERVAL_MS = 16
 const HOLD_REPEAT_INITIAL_DELAY_MS = 170
 const HOLD_REPEAT_INTERVAL_MS = 34
+/** Tempo mínimo (ms) de pressão em Enter para activar favorito (long-press). */
+const LONG_PRESS_ENTER_MS = 1200
 
 function focusElementByFocusId(id: string): void {
   const el = document.getElementById(`focus-${id}`)
@@ -29,6 +32,13 @@ function keyEventFocusInside(shell: Element | null, e: KeyboardEvent): boolean {
   const ae = document.activeElement
   if (ae instanceof Node && shell.contains(ae)) return true
   if (e.target instanceof Node && shell.contains(e.target as Node)) return true
+  // Fallback: após fechar modal Radix, activeElement fica em <body> e e.target também.
+  // O tvFocusIdStore sabe qual elemento deveria ter foco — verificar se está dentro do shell.
+  const storeId = tvFocusIdStore.get()
+  if (storeId) {
+    const storeEl = document.getElementById(`focus-${storeId}`)
+    if (storeEl instanceof HTMLElement && shell.contains(storeEl)) return true
+  }
   return false
 }
 
@@ -78,6 +88,7 @@ export type UseVodCatalogNavigationArgs = {
   getRealCategoryIndex: (filteredIndex: number) => number
   onCategoryActivate: (realIndex: number) => void
   onItemActivate: (flatIndex: number) => void
+  onToggleFavorite?: () => void
 }
 
 export type UseVodCatalogNavigationResult = {
@@ -108,6 +119,7 @@ export function useVodCatalogNavigation({
   getRealCategoryIndex,
   onCategoryActivate,
   onItemActivate,
+  onToggleFavorite,
 }: UseVodCatalogNavigationArgs): UseVodCatalogNavigationResult {
   const { setFocusedId } = useTvFocus()
   const location = useLocation()
@@ -116,6 +128,7 @@ export function useVodCatalogNavigation({
 
   const onCategoryActivateRef = useRef(onCategoryActivate)
   const onItemActivateRef = useRef(onItemActivate)
+  const onToggleFavoriteRef = useRef(onToggleFavorite)
   const getRealCategoryIndexRef = useRef(getRealCategoryIndex)
   const filteredCategoryCountRef = useRef(filteredCategoryCount)
   const itemCountRef = useRef(itemCount)
@@ -129,6 +142,14 @@ export function useVodCatalogNavigation({
   const focusedCategoryRef = useRef(0)
   const focusedItemRef = useRef(0)
   const lastRepeatHandledAtRef = useRef(0)
+  /** Long-press Enter: true enquanto Enter está pressionado. */
+  const enterPressedRef = useRef(false)
+  /** Long-press Enter: timer que dispara favorito após LONG_PRESS_ENTER_MS. */
+  const enterLongTimerRef = useRef<number | null>(null)
+  /** Long-press Enter: closure que executa a acção normal de Enter (short press). */
+  const enterShortActionRef = useRef<(() => void) | null>(null)
+  /** Long-press Enter: true se o long-press já disparou. */
+  const enterLongFiredRef = useRef(false)
   const holdDirectionRef = useRef<ReturnType<typeof mapRemoteKeyToDirection>>(null)
   const holdTimeoutRef = useRef<number | null>(null)
   const holdIntervalRef = useRef<number | null>(null)
@@ -158,6 +179,10 @@ export function useVodCatalogNavigation({
   useEffect(() => {
     onItemActivateRef.current = onItemActivate
   }, [onItemActivate])
+
+  useEffect(() => {
+    onToggleFavoriteRef.current = onToggleFavorite
+  }, [onToggleFavorite])
 
   useEffect(() => {
     getRealCategoryIndexRef.current = getRealCategoryIndex
@@ -413,6 +438,13 @@ export function useVodCatalogNavigation({
 
       if (isRemoteBackKey(e)) return
 
+      if (isRemoteYellowKey(e)) {
+        e.preventDefault()
+        e.stopPropagation()
+        onToggleFavoriteRef.current?.()
+        return
+      }
+
       if (isRemoteEnterKey(e)) {
         if (
           isFocusOnCategorySearch(ae, categorySearchRef, catSearchId) ||
@@ -420,16 +452,42 @@ export function useVodCatalogNavigation({
         ) {
           return
         }
+        if (e.repeat) {
+          e.preventDefault()
+          e.stopPropagation()
+          return
+        }
         e.preventDefault()
         e.stopPropagation()
+
+        // Limpar timer anterior (safety)
+        if (enterLongTimerRef.current != null) {
+          window.clearTimeout(enterLongTimerRef.current)
+          enterLongTimerRef.current = null
+        }
+        enterPressedRef.current = true
+        enterLongFiredRef.current = false
+
+        // Agendar long-press: dispara favorito após LONG_PRESS_ENTER_MS
+        enterLongTimerRef.current = window.setTimeout(() => {
+          enterLongTimerRef.current = null
+          enterLongFiredRef.current = true
+          enterShortActionRef.current = null
+          onToggleFavoriteRef.current?.()
+        }, LONG_PRESS_ENTER_MS)
+
         if (activePanelRef.current === 'categories' && fc > 0) {
           const fi = focusedCategoryRef.current
-          if (fi >= 0 && fi < fc) {
-            onCategoryActivateRef.current(getRealCategoryIndexRef.current(fi))
-          }
+          enterShortActionRef.current = (fi >= 0 && fi < fc)
+            ? () => onCategoryActivateRef.current(getRealCategoryIndexRef.current(fi))
+            : null
         } else if (activePanelRef.current === 'grid' && ic > 0) {
           const ii = Math.min(focusedItemRef.current, ic - 1)
-          onItemActivateRef.current(ii)
+          enterShortActionRef.current = () => onItemActivateRef.current(ii)
+        } else {
+          enterPressedRef.current = false
+          if (enterLongTimerRef.current != null) { window.clearTimeout(enterLongTimerRef.current); enterLongTimerRef.current = null }
+          enterShortActionRef.current = null
         }
         return
       }
@@ -532,17 +590,40 @@ export function useVodCatalogNavigation({
     }
 
     window.addEventListener('keydown', onKeyDown, true)
+    const clearEnterLongPress = () => {
+      enterPressedRef.current = false
+      if (enterLongTimerRef.current != null) {
+        window.clearTimeout(enterLongTimerRef.current)
+        enterLongTimerRef.current = null
+      }
+      enterShortActionRef.current = null
+      enterLongFiredRef.current = false
+    }
+
     const onKeyUp = (e: KeyboardEvent) => {
+      if (isRemoteEnterKey(e) && enterPressedRef.current) {
+        const alreadyFired = enterLongFiredRef.current
+        const shortAction = enterShortActionRef.current
+        clearEnterLongPress()
+        if (!alreadyFired) {
+          shortAction?.()
+        }
+        return
+      }
       const dir = mapRemoteKeyToDirection(e)
       if (!dir) return
       if (holdDirectionRef.current === dir) clearHoldRepeat()
     }
-    const onWindowBlur = () => clearHoldRepeat()
+    const onWindowBlur = () => {
+      clearHoldRepeat()
+      clearEnterLongPress()
+    }
     window.addEventListener('keyup', onKeyUp, true)
     window.addEventListener('blur', onWindowBlur)
     document.addEventListener('visibilitychange', onWindowBlur)
     return () => {
       clearHoldRepeat()
+      clearEnterLongPress()
       window.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('keyup', onKeyUp, true)
       window.removeEventListener('blur', onWindowBlur)

@@ -15,6 +15,7 @@ import {
   buildVodCatalogShellPlan,
   isSamsungTizenLikeRuntime,
 } from '@/lib/tvFocus'
+import { tvFocusIdStore } from '@/lib/tvFocus/tvFocusIdStore'
 import { useVodCatalogNavigation } from '@/pages/vod/useVodCatalogNavigation'
 import { enrichXtreamMovieDetail, prefetchXtreamMovieDetails } from '@/lib/vodDetailEnrichment'
 import { resolveMoviePlayUrl } from '@/lib/vodPlaybackResolve'
@@ -65,6 +66,18 @@ export default function MoviesPage() {
   const [detail, setDetail] = useState<XtreamVodStream | null>(null)
   const [vodApiDetail, setVodApiDetail] = useState<XtreamVodInfoDetail | null>(null)
   const [vodDetailLoading, setVodDetailLoading] = useState(false)
+  const modalFocusTimerRef = useRef<number | null>(null)
+
+  // Limpar timeout de restauração de foco ao desmontar — evita que um setTimeout
+  // stale corrompa o tvFocusIdStore depois de navegar para outra página.
+  useEffect(() => {
+    return () => {
+      if (modalFocusTimerRef.current != null) {
+        clearTimeout(modalFocusTimerRef.current)
+        modalFocusTimerRef.current = null
+      }
+    }
+  }, [])
 
   // playlist_id exclusivo para favoritos VOD — prefixo 'vod:' evita colisão com
   // canais ao vivo que usam o mesmo UUID de playlist como playlist_id.
@@ -252,14 +265,14 @@ export default function MoviesPage() {
 
   useEffect(() => {
     if (prefetchedMovieDetailIds.length === 0) return
-    let cancelled = false
+    const ac = new AbortController()
     const timer = window.setTimeout(() => {
-      if (cancelled) return
-      void prefetchXtreamMovieDetails(prefetchedMovieDetailIds, vodSourceType)
+      if (ac.signal.aborted) return
+      void prefetchXtreamMovieDetails(prefetchedMovieDetailIds, vodSourceType, ac.signal)
     }, 0)
     return () => {
-      cancelled = true
       window.clearTimeout(timer)
+      ac.abort()
     }
   }, [prefetchedMovieDetailIds, vodSourceType])
 
@@ -311,6 +324,21 @@ export default function MoviesPage() {
           setDetail(null)
           setVodApiDetail(null)
           setVodDetailLoading(false)
+          // Restaurar foco ao grid item após fechar o modal.
+          // 1. Definir imediatamente o ID no store — useVodCatalogNavigation usa
+          //    tvFocusIdStore como fallback para keyEventFocusInside quando activeElement é body.
+          const restoreId = `movies-mv-${focusedItemIndex}`
+          tvFocusIdStore.set(restoreId)
+          // 2. Após animação Radix (duration-100), aplicar foco DOM real.
+          //    Timer guardado em ref e limpo no unmount para não corromper o store
+          //    se o utilizador navegar para outra página antes dos 150ms.
+          if (modalFocusTimerRef.current != null) clearTimeout(modalFocusTimerRef.current)
+          modalFocusTimerRef.current = window.setTimeout(() => {
+            modalFocusTimerRef.current = null
+            if (tvFocusIdStore.get() !== restoreId) return
+            const el = document.getElementById(`focus-${restoreId}`)
+            if (el instanceof HTMLElement) el.focus({ preventScroll: true })
+          }, 150)
         }}
         kind="movie"
         title={detail?.name ?? ''}
@@ -358,7 +386,8 @@ export default function MoviesPage() {
               returnTo: '/movies',
             },
           })
-          setDetail(null)
+          // Não fechar o modal aqui — a navegação desmonta o MoviesPage inteiro.
+          // Fechar antes causava flash do catálogo enquanto o PlayerPage carregava.
         }}
       />
 

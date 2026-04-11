@@ -3,8 +3,18 @@ import { xtreamGetVodCategories, xtreamGetVodStreams } from '../live/xtreamApi.m
 import { filterM3uEntriesForVodMovies } from './m3uVodFilter.mjs'
 import { buildM3uVodMovieCatalog } from './m3uMoviesCatalog.mjs'
 
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
 async function fetchM3uText(url) {
-  const res = await fetch(url, { method: 'GET', redirect: 'follow' })
+  let hdrs
+  try {
+    const origin = new URL(url).origin
+    hdrs = { 'User-Agent': BROWSER_UA, Referer: `${origin}/`, Accept: '*/*' }
+  } catch {
+    hdrs = { 'User-Agent': BROWSER_UA }
+  }
+  const res = await fetch(url, { method: 'GET', redirect: 'follow', headers: hdrs })
   if (!res.ok) {
     const hint = await res.text().catch(() => '')
     throw new Error(`M3U fetch failed: ${res.status}${hint ? ` — ${hint.slice(0, 200)}` : ''}`)

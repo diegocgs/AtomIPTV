@@ -15,7 +15,7 @@ export function SplashPage() {
 
   return (
     <div className="splash">
-      <div className="splash__logo">IPTV Samsung</div>
+      <img src="/atom-logo.png" alt="Atom IPTV" className="splash__logo-img" />
       <p className="splash__sub">Smart TV · experiência pensada para o comando</p>
       <div className="splash__bar" aria-hidden>
         <div className="splash__bar-fill" />

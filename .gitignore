@@ -24,6 +24,9 @@ tizen/out
 # Backups
 backups/
 
+# CDK build artifacts
+aws-proxy/cdk/cdk.out/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -90,12 +90,11 @@ export function HomeChromeHeader() {
             onClick={() => navigate('/home')}
             role="link"
           >
-            <div className="home-chrome-header__mark" aria-hidden>
-              <span className="home-chrome-header__mark-text">TV</span>
-            </div>
-            <span className="home-chrome-header__title">
-              Stream<span className="home-chrome-header__title-accent">Pro</span>
-            </span>
+            <img
+              src="/atom-logo.png"
+              alt="Atom IPTV"
+              className="home-chrome-header__logo-img"
+            />
           </div>
         </div>
       </div>

@@ -34,6 +34,7 @@ import {
   type XtreamCredentials,
 } from '@/services/xtream'
 import { filterXtreamLiveDataForTv } from '../utils/xtreamLiveTvFilter'
+import { directXtreamLiveFetch } from '../utils/directXtreamFetch'
 
 type CacheEntry = { result: LiveCatalogResult; playlistRevision: string; fetchedAt: number }
 
@@ -188,6 +189,50 @@ async function resolveLiveCatalogInClient(active: PlaylistEntity): Promise<LiveC
         body = await res.text()
         void putM3uPlaylistBody(active.id, m3uUrl, body).catch(() => {})
       } catch {
+        // Fallback: Xtream API direto (JSON leve ~1MB). Resolve short links automaticamente.
+        const direct = await directXtreamLiveFetch(m3uUrl)
+        if (direct) {
+          const known = new Set(direct.categories.map(c => c.category_id))
+          const categories = [
+            { id: LIVE_ALL_CATEGORY_ID, name: 'Todos', order: 0 },
+            ...direct.categories.map((c, i) => ({
+              id: `xt-cat:${c.category_id}`,
+              name: c.category_name,
+              order: i + 1,
+            })),
+          ]
+          if (direct.streams.some(s => !s.category_id || !known.has(s.category_id))) {
+            categories.push({ id: LIVE_UNCATEGORIZED_ID, name: 'Uncategorized', order: categories.length })
+          }
+          const { creds } = direct
+          const channels = direct.streams.map((s, index) => {
+            const raw = s.category_id ?? ''
+            return {
+              id: `xtream-${s.stream_id}`,
+              name: s.name,
+              logo: s.stream_icon?.trim() ?? '',
+              categoryId: raw && known.has(raw) ? `xt-cat:${raw}` : LIVE_UNCATEGORIZED_ID,
+              streamUrl: `${creds.origin}/live/${creds.username}/${creds.password}/${s.stream_id}.m3u8`,
+              sourceType: 'xtream' as const,
+              originalSourceId: String(s.stream_id),
+              epgChannelId: s.epg_channel_id ?? undefined,
+              isLive: true as const,
+              number: index + 1,
+            }
+          })
+          return { categories, channels, sourceType: 'xtream', loadedAt: Date.now() }
+        }
+        // DEV: proxy inline do Vite.
+        if (import.meta.env.DEV) {
+          try {
+            const dr = await fetch(`/__iptv_dev/fetch?url=${encodeURIComponent(m3uUrl)}`, { method: 'GET', cache: 'no-store' })
+            if (dr.ok) {
+              body = await dr.text()
+              void putM3uPlaylistBody(active.id, m3uUrl, body).catch(() => {})
+              return buildM3uLiveCatalogResult(filterM3uEntriesForLive(parseM3u(body)))
+            }
+          } catch { /* fallthrough */ }
+        }
         const liveRows = await getM3uPlaylistLiveRows(active.id, m3uUrl)
         if (liveRows && liveRows.length > 0) {
           return buildM3uLiveCatalogResult(filterM3uEntriesForLive(liveRowsToM3uEntries(liveRows)))

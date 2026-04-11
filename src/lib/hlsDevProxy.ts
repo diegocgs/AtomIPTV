@@ -11,12 +11,21 @@ import {
   urlAppearsToBeHlsManifest,
   wasTvProxyApplied,
 } from '@/lib/playableStreamUrl';
+import { isSamsungTizenLikeRuntime } from '@/lib/tvFocus';
 
 /**
  * VOD progressivo: o browser não envia UA VLC ao pedir o .mp4 direto (403 no painel/Cloudflare).
  * Em dev: `/api/vod-proxy` (Vite, streaming). Em prod: `VITE_VOD_STREAM_URL` (Lambda response streaming).
+ *
+ * Em Tizen (TV Samsung): AVPlay reproduz HTTP direto sem problemas — o proxy Lambda
+ * pode falhar (403, timeout) e é desnecessário. Retorna a URL sem wrapping.
  */
 function wrapProgressiveVodUrl(normalized: string): string {
+  // Tizen AVPlay: reproduz .mp4/.mkv diretamente via HTTP — sem necessidade de proxy.
+  // O proxy Lambda falha frequentemente (403 Cloudflare, limites de streaming).
+  if (isSamsungTizenLikeRuntime()) {
+    return normalized;
+  }
   const q = encodeURIComponent(normalized);
   const streamFn = (import.meta.env.VITE_VOD_STREAM_URL as string | undefined)?.trim();
   if (streamFn) {

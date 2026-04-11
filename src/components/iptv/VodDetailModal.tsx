@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Film, Star } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { tryNavigateModalActionRow, tryNavigateModalActionTab } from '@/lib/modalActionNav'
+import { isRemoteYellowKey } from '@/lib/tvFocus/tvRemoteKeys'
 import { cn } from '@/lib/utils'
 import IptvRemoteImage from '@/components/iptv/IptvRemoteImage'
 
@@ -63,10 +64,21 @@ export default function VodDetailModal({
     [onToggleFavorite],
   )
 
+  const onToggleFavoriteRef = useRef(onToggleFavorite)
+  useEffect(() => {
+    onToggleFavoriteRef.current = onToggleFavorite
+  }, [onToggleFavorite])
+
   /** useLayoutEffect: regista o listener na window antes do TvFocusProvider (efeito no pai) — Tab/←→ com stopImmediatePropagation antes do Radix FocusScope. */
   useLayoutEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
+      if (isRemoteYellowKey(e)) {
+        e.preventDefault()
+        e.stopPropagation()
+        onToggleFavoriteRef.current?.()
+        return
+      }
       const root =
         contentRef.current ??
         (document.querySelector('[data-tv-modal-open="1"]') as HTMLElement | null)
@@ -89,6 +101,11 @@ export default function VodDetailModal({
         ref={contentRef}
         data-tv-modal-open="1"
         closeButtonTabIndex={-1}
+        onCloseAutoFocus={(ev) => {
+          // Prevenir Radix de restaurar foco para o trigger (inexistente ou incorreto).
+          // Deixar o sistema TV de navegação restaurar foco via TVFocusable.
+          ev.preventDefault()
+        }}
         onOpenAutoFocus={(ev) => {
           ev.preventDefault()
           // Foca o primeiro botão de ação não desabilitado de forma síncrona.

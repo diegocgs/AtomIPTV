@@ -92,3 +92,21 @@ export function isRemoteEnterKey(e: KeyboardEvent): boolean {
   if (e.keyCode === 13) return true
   return false
 }
+
+/**
+ * Botão amarelo "C" do controle Samsung (ColorF2Yellow).
+ * Usado para favoritar/desfavoritar conteúdo.
+ * @see https://developer.samsung.com/smarttv/develop/guides/user-interaction/remote-control.html
+ */
+export function isRemoteYellowKey(e: KeyboardEvent): boolean {
+  if (e.key === 'ColorF2Yellow') return true
+  if (e.keyCode === 405) return true
+  // Fallback: tecla "c" no teclado (dev)
+  if (!isSamsungTizenLikeRuntime() && (e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (isTypingElement(e.target) || isTypingElement(typeof document !== 'undefined' ? document.activeElement : null)) {
+      return false
+    }
+    return true
+  }
+  return false
+}

@@ -16,6 +16,7 @@ import { buildM3uSeriesCatalog } from '@/lib/m3uSeriesCatalog'
 import { buildM3uDownloadRequestUrl } from '@/lib/m3uFetchUrl'
 import { smartHttpGet } from '@/lib/proxyClientGet'
 import { fetchXtreamSeries, fetchXtreamSeriesCategories } from '@/services/xtream'
+import { directXtreamSeriesFetch } from '../utils/directXtreamFetch'
 import { buildHybridApiUrl } from '@/lib/hybridApiOrigin'
 import {
   getXtreamCredentialsForApp,
@@ -136,10 +137,27 @@ async function resolveSeriesCatalogInClient(): Promise<SeriesCatalogResult> {
 
   let body = await getM3uPlaylistBody(active.id, m3uUrl)
   if (!body) {
-    const res = await smartHttpGet(buildM3uDownloadRequestUrl(m3uUrl), { method: 'GET' })
-    if (!res.ok) throw new Error(`M3U download failed (${res.status}).`)
-    body = await res.text()
-    void putM3uPlaylistBody(active.id, m3uUrl, body).catch(() => {})
+    try {
+      const res = await smartHttpGet(buildM3uDownloadRequestUrl(m3uUrl), { method: 'GET' })
+      if (!res.ok) throw new Error(`M3U download failed (${res.status}).`)
+      body = await res.text()
+      void putM3uPlaylistBody(active.id, m3uUrl, body).catch(() => {})
+    } catch {
+      // Fallback: Xtream API direto (JSON leve). Resolve short links automaticamente.
+      const direct = await directXtreamSeriesFetch(m3uUrl)
+      if (direct) return direct
+      // DEV: proxy inline do Vite.
+      if (import.meta.env.DEV) {
+        try {
+          const dr = await fetch(`/__iptv_dev/fetch?url=${encodeURIComponent(m3uUrl)}`, { method: 'GET', cache: 'no-store' })
+          if (dr.ok) {
+            body = await dr.text()
+            void putM3uPlaylistBody(active.id, m3uUrl, body).catch(() => {})
+          }
+        } catch { /* fallthrough */ }
+      }
+      if (!body) throw new Error('M3U download failed (all attempts)')
+    }
   }
   const entries = filterM3uEntriesForSeries(parseM3u(body))
   const built = buildM3uSeriesCatalog(entries)

@@ -115,15 +115,36 @@
   }
 
   window.addEventListener('message', function (event) {
-    if (loaded) return
     if (frameEl && event.source !== frameEl.contentWindow) return
     if (frameOrigin && event.origin !== frameOrigin) return
     var data = event.data || {}
-    if (data.type !== 'iptv-shell-ready') return
-    markLoaded()
+    if (data.type === 'iptv-shell-ready') {
+      if (!loaded) markLoaded()
+      return
+    }
+    if (data.type === 'iptv-shell-exit') {
+      try {
+        var tizen = window.tizen
+        if (tizen && tizen.application && typeof tizen.application.getCurrentApplication === 'function') {
+          var app = tizen.application.getCurrentApplication()
+          if (app && typeof app.exit === 'function') {
+            app.exit()
+            return
+          }
+        }
+      } catch (err) {}
+      window.close()
+      return
+    }
   })
 
+  var lastBackSentAt = 0
+  var BACK_DEBOUNCE_MS = 300
+
   function forwardBackToHosted() {
+    var now = Date.now()
+    if (now - lastBackSentAt < BACK_DEBOUNCE_MS) return
+    lastBackSentAt = now
     if (frameEl && frameEl.contentWindow) {
       try {
         frameEl.contentWindow.postMessage({ type: 'iptv-shell-back' }, '*')
@@ -152,7 +173,7 @@
     }
   }
 
-  window.addEventListener('tizenhwkey', onHardwareBack, true)
+  // Apenas uma escuta de tizenhwkey (window, capture) — evita duplicatas
   document.addEventListener('tizenhwkey', onHardwareBack, true)
   window.addEventListener('keydown', onBackKeyDown, true)
 

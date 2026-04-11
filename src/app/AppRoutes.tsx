@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { TvFocusProvider } from '@/lib/tvFocus'
@@ -14,10 +14,30 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ de
 const DetailPage = lazy(() => import('@/pages/DetailPage').then((m) => ({ default: m.DetailPage })))
 const PlayerPage = lazy(() => import('@/features/player').then((m) => ({ default: m.PlayerPage })))
 
+/**
+ * Na inicialização, se o hash persistiu de uma sessão anterior (ex.: TV desligada com #/live),
+ * redireciona para a splash para garantir uma experiência limpa.
+ */
+function useForceStartAtSplash() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const didBootRef = useRef(false)
+
+  useEffect(() => {
+    if (didBootRef.current) return
+    didBootRef.current = true
+    // Se o app arrancou numa rota que não é splash nem home, redirecionar para splash
+    if (location.pathname !== '/' && location.pathname !== '/home') {
+      navigate('/', { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 function FocusedRoutes() {
   const navigate = useNavigate()
   const location = useLocation()
   const [showExitDialog, setShowExitDialog] = useState(false)
+  useForceStartAtSplash()
 
   const playerReturnTo =
     location.pathname === '/player' &&
@@ -28,6 +48,12 @@ function FocusedRoutes() {
       : '/home'
 
   const onBack = useCallback(() => {
+    // Se um modal/fullscreen está aberto (data-tv-modal-open), o Back é tratado
+    // pelo componente que o abriu via tv-modal-escape — não navegar.
+    if (document.querySelector('[data-tv-modal-open="1"]')) {
+      window.dispatchEvent(new CustomEvent('tv-modal-escape'))
+      return
+    }
     if (location.pathname === '/player') {
       navigate(playerReturnTo, { replace: true })
       return
