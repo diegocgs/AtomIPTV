@@ -52,6 +52,9 @@ export class Html5PlaybackEngine implements PlaybackEngine {
   private unmuteGestureAttached = false
   private rectRafId: number | null = null
   private resizeObserver: ResizeObserver | null = null
+  private isFullscreenDisplay = false
+  /** On Tizen, the <video> is detached from the container (body-fixed). */
+  private isDetached = false
 
   attachDisplay(container: HTMLElement): void {
     this.container = container
@@ -82,6 +85,7 @@ export class Html5PlaybackEngine implements PlaybackEngine {
     const needsDetach = isSamsungTizenLikeRuntime() && !isFullscreen
 
     if (needsDetach) {
+      this.isDetached = true
       v.style.position = 'fixed'
       v.style.margin = '0'
       v.style.padding = '0'
@@ -104,6 +108,7 @@ export class Html5PlaybackEngine implements PlaybackEngine {
   /** Sincroniza posição/tamanho do <video> fixo com o bounding rect do container. */
   private syncVideoRect(): void {
     if (!this.video || !this.container || this.destroyed) return
+    if (this.isFullscreenDisplay) return
     const r = this.container.getBoundingClientRect()
     const v = this.video
     v.style.left = `${Math.round(r.left)}px`
@@ -236,6 +241,50 @@ export class Html5PlaybackEngine implements PlaybackEngine {
     if (!this.video || this.destroyed) return
     this.video.pause()
     this.clearSources()
+  }
+
+  enterFullscreenDisplay(): void {
+    if (this.destroyed || !this.video) return
+    this.isFullscreenDisplay = true
+    const v = this.video
+
+    if (this.isDetached) {
+      // Tizen: <video> já está no body com position:fixed — reposicionar para fullscreen
+      v.style.left = '0px'
+      v.style.top = '0px'
+      v.style.width = '100vw'
+      v.style.height = '100vh'
+      v.style.zIndex = '10000'
+    } else {
+      // Browser: <video> dentro do container — tornar fixed fullscreen
+      v.style.position = 'fixed'
+      v.style.left = '0px'
+      v.style.top = '0px'
+      v.style.width = '100vw'
+      v.style.height = '100vh'
+      v.style.zIndex = '10000'
+    }
+  }
+
+  exitFullscreenDisplay(): void {
+    if (this.destroyed || !this.video) return
+    this.isFullscreenDisplay = false
+    const v = this.video
+
+    if (this.isDetached) {
+      // Tizen: restaurar para posição do container
+      v.style.zIndex = ''
+      this.syncVideoRect()
+      this.startRectSync()
+    } else {
+      // Browser: restaurar inline no container
+      v.style.position = ''
+      v.style.left = ''
+      v.style.top = ''
+      v.style.width = '100%'
+      v.style.height = '100%'
+      v.style.zIndex = ''
+    }
   }
 
   setFullscreen(enabled: boolean): void {

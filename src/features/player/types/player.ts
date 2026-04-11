@@ -39,5 +39,16 @@ export interface PlaybackEngine {
   /** Ecrã completo: AVPlay/Tizen pode usar API nativa; HTML5 pode usar Fullscreen API. */
   setFullscreen(enabled?: boolean): void | Promise<void>
 
+  /**
+   * Reposiciona o elemento de vídeo para cobrir todo o viewport (fullscreen CSS-only).
+   * Mantém a mesma instância — sem reconexão do stream.
+   */
+  enterFullscreenDisplay(): void
+
+  /**
+   * Restaura o elemento de vídeo para a posição original dentro do container de preview.
+   */
+  exitFullscreenDisplay(): void
+
   destroy(): void | Promise<void>
 }

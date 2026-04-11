@@ -158,6 +158,20 @@ export class AvplayPlaybackEngine implements PlaybackEngine {
     /** Integração futura: `tizen.application` / APIs de ecrã; placeholder. */
   }
 
+  enterFullscreenDisplay(): void {
+    if (this.destroyed || !this.avplayObject) return
+    const obj = this.avplayObject
+    obj.style.cssText =
+      'display:block;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:10000;'
+  }
+
+  exitFullscreenDisplay(): void {
+    if (this.destroyed || !this.avplayObject) return
+    const obj = this.avplayObject
+    obj.style.cssText =
+      'display:block;position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;'
+  }
+
   async destroy(): Promise<void> {
     if (this.destroyed) return
     this.destroyed = true

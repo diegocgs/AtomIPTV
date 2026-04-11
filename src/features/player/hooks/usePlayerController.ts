@@ -243,6 +243,14 @@ export function usePlayerController({
     setState((s) => ({ ...s, isPlaying: false }))
   }, [])
 
+  const enterFullscreenDisplay = useCallback(() => {
+    engineRef.current?.enterFullscreenDisplay()
+  }, [])
+
+  const exitFullscreenDisplay = useCallback(() => {
+    engineRef.current?.exitFullscreenDisplay()
+  }, [])
+
   return {
     ...state,
     error: displayError,
@@ -250,6 +258,8 @@ export function usePlayerController({
     pause,
     toggle,
     stop,
+    enterFullscreenDisplay,
+    exitFullscreenDisplay,
     engineKind: kind,
   }
 }

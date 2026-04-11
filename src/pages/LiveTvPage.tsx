@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { PlayerSurface } from '@/features/player/components/PlayerSurface'
 import { usePlayerController } from '@/features/player/hooks/usePlayerController'
 import { useLiveCatalog, type LiveCategory, type LiveChannel } from '@/features/catalog'
@@ -22,7 +22,10 @@ import {
 } from '@/features/catalog/utils/liveMappers'
 import { FocusPlan, TVFocusable } from '@/lib/tvFocus'
 import { buildLiveTvShellOnlyPlan } from '@/lib/tvFocus/buildLiveTvShellOnlyPlan'
-import { isSamsungTizenLikeRuntime } from '@/lib/tvFocus/tvRemoteKeys'
+import {
+  isRemoteEnterKey,
+  isSamsungTizenLikeRuntime,
+} from '@/lib/tvFocus/tvRemoteKeys'
 import { useLiveTvNavigation } from '@/pages/liveTv/useLiveTvNavigation'
 import {
   fetchXtreamShortEpg,
@@ -114,10 +117,11 @@ const CATEGORY_ROW_ICONS = [
 ] as const
 
 export function LiveTvPage() {
-  const navigate = useNavigate()
   const { activePlaylistId, revision } = usePlaylists()
   const previewHostRef = useRef<HTMLDivElement>(null)
   const liveNavRestoredRef = useRef(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const isFullscreenRef = useRef(false)
   const {
     categories: liveCategories,
     channels,
@@ -284,18 +288,7 @@ export function LiveTvPage() {
     window.alert('Guia EPG detalhado ainda está em evolução. O resumo Now/Up Next já usa o EPG do provider quando disponível.')
   }, [])
 
-  const openChannelById = useCallback((channelId: string) => {
-    const ch = channels.find((row) => row.id === channelId)
-    if (!ch) return
-    navigate('/player', {
-      state: {
-        streamUrl: ch.streamUrl,
-        title: ch.name,
-        channelId: ch.id,
-        returnTo: '/live',
-      },
-    })
-  }, [channels, navigate])
+  const openChannelByIdRef = useRef<(id: string) => void>(() => {})
 
   const {
     focusedChannelIndex,
@@ -319,7 +312,7 @@ export function LiveTvPage() {
     setLastChannelFocusId: onChannelFocused,
     setLastCategoryFocusId: onCategoryFocused,
     onOpenPlayingChannel: () => openPlayingChannelRef.current(),
-    onOpenChannelById: openChannelById,
+    onOpenChannelById: (id: string) => openChannelByIdRef.current(id),
     onToggleFavorite: () => toggleFavoriteRef.current(),
     onOpenEpgPlaceholder: openEpgPlaceholder,
     clearChannelSearch: () => setChannelQuery(''),
@@ -357,7 +350,14 @@ export function LiveTvPage() {
       }
     })()
 
-  const { isBuffering, error: playerError, engineKind } = usePlayerController({
+  const {
+    isBuffering,
+    error: playerError,
+    engineKind,
+    toggle,
+    enterFullscreenDisplay,
+    exitFullscreenDisplay,
+  } = usePlayerController({
     containerRef: previewHostRef,
     streamUrl: debouncedPreviewStreamUrl,
     title: previewChannel?.name,
@@ -368,6 +368,29 @@ export function LiveTvPage() {
   })
 
   const playingChannel = previewChannel
+
+  const enterFullscreen = useCallback(() => {
+    isFullscreenRef.current = true
+    setIsFullscreen(true)
+    enterFullscreenDisplay()
+  }, [enterFullscreenDisplay])
+
+  const exitFullscreen = useCallback(() => {
+    isFullscreenRef.current = false
+    setIsFullscreen(false)
+    exitFullscreenDisplay()
+  }, [exitFullscreenDisplay])
+
+  const openChannelById = useCallback((channelId: string) => {
+    const ch = channels.find((row) => row.id === channelId)
+    if (!ch) return
+    setPreviewChannelId(ch.id)
+    enterFullscreen()
+  }, [channels, enterFullscreen])
+
+  useEffect(() => {
+    openChannelByIdRef.current = openChannelById
+  }, [openChannelById])
 
   const xtreamCredentials: XtreamCredentials | null = useMemo(() => {
     if (!shouldUseXtreamApiForActivePlaylist()) return null
@@ -430,15 +453,8 @@ export function LiveTvPage() {
 
   const openPlayingChannel = useCallback(() => {
     if (!previewChannel) return
-    navigate('/player', {
-      state: {
-        streamUrl: previewChannel.streamUrl,
-        title: previewChannel.name,
-        channelId: previewChannel.id,
-        returnTo: '/live',
-      },
-    })
-  }, [navigate, previewChannel])
+    enterFullscreen()
+  }, [previewChannel, enterFullscreen])
 
   const toggleFavorite = useCallback(() => {
     if (!previewChannel || !activePlaylistId) return
@@ -455,6 +471,29 @@ export function LiveTvPage() {
     openPlayingChannelRef.current = openPlayingChannel
     toggleFavoriteRef.current = toggleFavorite
   }, [openPlayingChannel, toggleFavorite])
+
+  // Fullscreen: Back key handled via TvFocusProvider's tv-modal-escape (data-tv-modal-open on backdrop)
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onEscape = () => exitFullscreen()
+    window.addEventListener('tv-modal-escape', onEscape)
+    return () => window.removeEventListener('tv-modal-escape', onEscape)
+  }, [isFullscreen, exitFullscreen])
+
+  // Fullscreen: Enter/Space toggles play/pause
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (!isFullscreenRef.current) return
+      if (isRemoteEnterKey(e) || e.code === 'Space' || e.keyCode === 32) {
+        e.preventDefault()
+        e.stopPropagation()
+        toggle()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [isFullscreen, toggle])
 
   const channelListWinStart = useMemo(() => {
     const n = visibleChannels.length
@@ -715,14 +754,7 @@ export function LiveTvPage() {
                           role="button"
                           onClick={() => {
                             if (previewChannelId === ch.id) {
-                              navigate('/player', {
-                                state: {
-                                  streamUrl: ch.streamUrl,
-                                  title: ch.name,
-                                  channelId: ch.id,
-                                  returnTo: '/live',
-                                },
-                              })
+                              enterFullscreen()
                             } else {
                               setPreviewChannelId(ch.id)
                             }
@@ -777,14 +809,7 @@ export function LiveTvPage() {
                   role={playingChannel ? 'button' : undefined}
                   onClick={() => {
                     if (!playingChannel) return
-                    navigate('/player', {
-                      state: {
-                        streamUrl: playingChannel.streamUrl,
-                        title: playingChannel.name,
-                        channelId: playingChannel.id,
-                        returnTo: '/live',
-                      },
-                    })
+                    enterFullscreen()
                   }}
                 >
                   <div className="nl-preview__video-aspect">
@@ -897,6 +922,14 @@ export function LiveTvPage() {
           </div>
         </div>
       </div>
+      {isFullscreen && (
+        <div
+          className="live-fullscreen-backdrop"
+          data-tv-modal-open="1"
+          onClick={exitFullscreen}
+          aria-hidden
+        />
+      )}
     </FocusPlan>
   )
 }

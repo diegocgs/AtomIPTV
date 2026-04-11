@@ -607,6 +607,11 @@
   background: hsl(var(--muted) / 0.2);
 }
 
+.live-nexus-scope .tv-focusable--focused .nl-preview__video-outer {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.55), 0 0 16px hsl(187 100% 50% / 0.2);
+  border-radius: 1rem;
+}
+
 .live-nexus-scope .tv-focusable--focused.nl-preview__btn-wrap .nl-preview__btn {
   border-color: hsl(var(--primary) / 0.45);
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35), 0 0 20px hsl(187 100% 50% / 0.2);
@@ -718,4 +723,15 @@
 .tv-fast-focus .live-nexus-scope .tv-focusable--focused.nl-ch-row-wrap .nl-ch-row.nl-ch-row--playing,
 .tv-fast-focus .live-nexus-scope .tv-focusable--focused.nl-cat-row-wrap .nl-cat-row.nl-cat-row--applied {
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35);
+}
+
+/* ——— Fullscreen backdrop ——— */
+.live-fullscreen-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: #000;
 }
