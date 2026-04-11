@@ -60,9 +60,12 @@ export function useLiveCatalog(): UseLiveCatalogResult {
       setSourceType(seeded.sourceType)
       setError(null)
       setIsLoading(false)
-    } else {
-      setIsLoading(true)
+      // Cache em memória já tem dados frescos — não precisa re-buscar.
+      // O listener CATALOG_REFRESH_EVENT (abaixo) trata revalidações de fundo.
+      return () => { cancelled = true; ac.abort() }
     }
+
+    setIsLoading(true)
     setError(null)
 
     ;(async () => {

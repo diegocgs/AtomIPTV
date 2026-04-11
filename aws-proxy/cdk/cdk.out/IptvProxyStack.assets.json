@@ -1,0 +1,36 @@
+{
+  "version": "53.0.0",
+  "files": {
+    "45de6db47b9e8f24f8813deb806a7cc1ef9014f30f79338f2f035616595141d5": {
+      "displayName": "IptvProxyFn/Code",
+      "source": {
+        "path": "asset.45de6db47b9e8f24f8813deb806a7cc1ef9014f30f79338f2f035616595141d5",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "current_account-ca-central-1-68335d8c": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-ca-central-1",
+          "objectKey": "45de6db47b9e8f24f8813deb806a7cc1ef9014f30f79338f2f035616595141d5.zip",
+          "region": "ca-central-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-ca-central-1"
+        }
+      }
+    },
+    "824c4fd1ac62fb93ae188f232c676c2af038fee734b47291e584eaa20a7204d0": {
+      "displayName": "iptv-proxy-stack Template",
+      "source": {
+        "path": "IptvProxyStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-ca-central-1-50c4ac53": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-ca-central-1",
+          "objectKey": "824c4fd1ac62fb93ae188f232c676c2af038fee734b47291e584eaa20a7204d0.json",
+          "region": "ca-central-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-ca-central-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

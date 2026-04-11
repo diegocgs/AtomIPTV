@@ -35,12 +35,15 @@ import {
 } from '@/services/xtream'
 import { filterXtreamLiveDataForTv } from '../utils/xtreamLiveTvFilter'
 
-type CacheEntry = { result: LiveCatalogResult; playlistRevision: string }
+type CacheEntry = { result: LiveCatalogResult; playlistRevision: string; fetchedAt: number }
 
 const memoryCache = new Map<string, CacheEntry>()
 const inflightRequests = new Map<string, Promise<LiveCatalogResult>>()
 
 const liveRevalidateGen = new Map<string, number>()
+
+/** Não revalidar em background se o cache tem menos de 5 minutos. */
+const REVALIDATE_STALE_MS = 5 * 60_000
 
 function cacheKey(playlist: PlaylistEntity): string {
   return `${playlist.id}:${playlist.updatedAt}`
@@ -249,6 +252,11 @@ async function persistLiveSnapshot(active: PlaylistEntity, result: LiveCatalogRe
 
 function scheduleLiveBackgroundRevalidate(active: PlaylistEntity, revisionKey: string): void {
   const id = active.id
+  // Não revalidar se o cache em memória ainda é fresco.
+  const cached = memoryCache.get(id)
+  if (cached && cached.playlistRevision === revisionKey && Date.now() - cached.fetchedAt < REVALIDATE_STALE_MS) {
+    return
+  }
   const gen = (liveRevalidateGen.get(id) ?? 0) + 1
   liveRevalidateGen.set(id, gen)
   const apiUrl = buildCatalogApiUrl(active)
@@ -260,7 +268,7 @@ function scheduleLiveBackgroundRevalidate(active: PlaylistEntity, revisionKey: s
       const cur = playlistServiceGetActivePlaylist()
       if (!cur || cur.id !== id || cacheKey(cur) !== revisionKey) return
       result.meta = { playlistName: cur.name, playlistId: cur.id }
-      memoryCache.set(id, { result, playlistRevision: revisionKey })
+      memoryCache.set(id, { result, playlistRevision: revisionKey, fetchedAt: Date.now() })
       await persistLiveSnapshot(cur, result)
       dispatchCatalogRefresh({ kind: 'live', playlistId: id, result })
     } catch {
@@ -304,7 +312,7 @@ export async function getLiveCatalogForActivePlaylist(options?: {
       const parsed = JSON.parse(JSON.stringify(row.payload)) as LiveCatalogResult
       const sanitized = sanitizeM3uLiveCatalogResult(parsed)
       sanitized.meta = { playlistName: active.name, playlistId: active.id }
-      memoryCache.set(active.id, { result: sanitized, playlistRevision: key })
+      memoryCache.set(active.id, { result: sanitized, playlistRevision: key, fetchedAt: Date.now() })
       // Sempre revalidar Live em background para evitar ficar preso em snapshot antigo de contagem.
       scheduleLiveBackgroundRevalidate(active, key)
       return sanitized
@@ -315,7 +323,7 @@ export async function getLiveCatalogForActivePlaylist(options?: {
   if (!apiUrl) {
     const result = emptyNoPlaylist()
     result.meta = { playlistName: active.name, playlistId: active.id }
-    memoryCache.set(active.id, { result, playlistRevision: key })
+    memoryCache.set(active.id, { result, playlistRevision: key, fetchedAt: Date.now() })
     return result
   }
 
@@ -338,7 +346,7 @@ export async function getLiveCatalogForActivePlaylist(options?: {
     result.meta = { playlistName: active.name, playlistId: active.id }
     const sanitized = sanitizeM3uLiveCatalogResult(result)
     sanitized.meta = { playlistName: active.name, playlistId: active.id }
-    memoryCache.set(active.id, { result: sanitized, playlistRevision: key })
+    memoryCache.set(active.id, { result: sanitized, playlistRevision: key, fetchedAt: Date.now() })
     void persistLiveSnapshot(active, sanitized)
     return sanitized
   })()

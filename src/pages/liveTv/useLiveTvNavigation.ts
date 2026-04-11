@@ -88,8 +88,8 @@ export type LiveTvNavigationState = {
 }
 
 const REMOTE_REPEAT_MIN_INTERVAL_MS = 16
-const HOLD_REPEAT_INITIAL_DELAY_MS = 170
-const HOLD_REPEAT_INTERVAL_MS = 34
+const HOLD_REPEAT_INITIAL_DELAY_MS = 400
+const HOLD_REPEAT_INTERVAL_MS = 120
 
 /**
  * D-pad alinhado a `nexus-vision-prime/src/pages/LiveTV.tsx`:

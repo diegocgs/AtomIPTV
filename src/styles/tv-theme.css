@@ -2682,7 +2682,7 @@ body {
 }
 
 .tv-samsung-tizen .tv-focusable--focused {
-  box-shadow: 0 0 0 3px rgba(91, 140, 255, 0.55) !important;
+  box-shadow: none !important;
   outline: none !important;
 }
 
@@ -2696,7 +2696,7 @@ body {
 .tv-samsung-tizen .iptv-vod-catalog-scope .tv-focusable.iptv-vod-poster-card.iptv-vod-poster-card--dpad-active,
 .tv-samsung-tizen .live-nexus-scope .tv-focusable--focused.nl-cat-row-wrap .nl-cat-row:not(.nl-cat-row--applied),
 .tv-samsung-tizen .live-nexus-scope .tv-focusable--focused.nl-ch-row-wrap .nl-ch-row:not(.nl-ch-row--playing) {
-  box-shadow: inset 0 0 0 2px rgba(91, 140, 255, 0.42) !important;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.55) !important;
 }
 
 .tv-samsung-tizen .iptv-vod-catalog-scope .iptv-vod-cat-row-wrap.tv-focusable--focused,

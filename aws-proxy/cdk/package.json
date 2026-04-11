@@ -1,0 +1,24 @@
+{
+  "name": "iptv-proxy-cdk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CDK stack para a API IPTV Samsung — Lambda Function URL, ca-central-1",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "deploy": "npm run build && cdk deploy --require-approval never",
+    "destroy": "cdk destroy",
+    "diff": "npm run build && cdk diff",
+    "synth": "npm run build && cdk synth"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.200.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.200.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.0"
+  }
+}

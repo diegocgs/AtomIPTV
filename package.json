@@ -17,7 +17,12 @@
     "build:tizen:lan": "HOSTED_APP_URL=${HOSTED_APP_URL:?Missing HOSTED_APP_URL} VITE_HYBRID_API_BASE_URL=${VITE_HYBRID_API_BASE_URL:?Missing VITE_HYBRID_API_BASE_URL} npm run build:tizen",
     "package:tizen": "npm run build:tizen && node scripts/tizen-package.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lambda:sync": "cp -r server/live server/vod server/utils aws-proxy/lambda/",
+    "lambda:install": "cd aws-proxy/cdk && npm install",
+    "lambda:deploy": "npm run lambda:sync && cd aws-proxy/cdk && npm run build && npx cdk deploy --require-approval never -c lambdaPublicBase=https://hddzpck7gs6p2jv7bkh57iwxwu0ibqwk.lambda-url.ca-central-1.on.aws",
+    "lambda:diff": "npm run lambda:sync && cd aws-proxy/cdk && npm run build && npx cdk diff",
+    "lambda:destroy": "cd aws-proxy/cdk && npx cdk destroy"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

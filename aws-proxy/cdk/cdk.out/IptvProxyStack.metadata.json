@@ -1,0 +1,89 @@
+{
+  "/IptvProxyStack": [
+    {
+      "type": "aws:cdk:stack-tags",
+      "data": [
+        {
+          "key": "ManagedBy",
+          "value": "CDK"
+        },
+        {
+          "key": "Project",
+          "value": "IPTV"
+        }
+      ]
+    }
+  ],
+  "/IptvProxyStack/IptvProxyFunctionUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyFunctionUrl"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyFunctionName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyFunctionName"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyLogGroupName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyLogGroupName"
+    }
+  ],
+  "/IptvProxyStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/IptvProxyStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyLogGroup/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyLogGroupA38045E8"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyFn/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyFnCFA88EB7"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyFn/invoke-function-url": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyFninvokefunctionurl53BD68C3"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyFn/invoke-function": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyFninvokefunction882F2710"
+    }
+  ],
+  "/IptvProxyStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyFn/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyFnServiceRole50DA3785"
+    }
+  ],
+  "/IptvProxyStack/IptvProxyFn/FunctionUrl/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "IptvProxyFnFunctionUrl16118C5C"
+    }
+  ]
+}
