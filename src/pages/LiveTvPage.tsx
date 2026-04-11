@@ -386,7 +386,9 @@ export function LiveTvPage() {
     isFullscreenRef.current = false
     setIsFullscreen(false)
     exitFullscreenDisplay()
-    focusChannelList()
+    // Atrasar focusChannelList para após o React remover o overlay data-tv-modal-open
+    // do DOM. Sem isto, applyFocusToId bloqueia o foco porque lch-N está fora do modal.
+    requestAnimationFrame(() => focusChannelList())
   }, [exitFullscreenDisplay, focusChannelList])
 
   const openChannelById = useCallback((channelId: string) => {

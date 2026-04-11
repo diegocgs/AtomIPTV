@@ -259,7 +259,7 @@ export default function SeriesPage() {
   }, [detail, seriesCategories])
 
   useEffect(() => {
-    if (!detail || seriesSourceType !== 'xtream') {
+    if (!detail) {
       setSeriesApiDetail(null)
       setSeriesDetailLoading(false)
       return

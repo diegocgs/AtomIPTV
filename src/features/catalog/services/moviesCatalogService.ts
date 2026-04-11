@@ -117,17 +117,24 @@ async function resolveMoviesCatalogInClient(): Promise<MoviesCatalogResult> {
   if (shouldUseXtreamApiForActivePlaylist()) {
     const credentials = getXtreamCredentialsForApp()
     if (!credentials.serverUrl?.trim() || !credentials.username?.trim()) {
+      console.warn('[MoviesCatalog] Xtream credentials empty, returning empty')
       return emptyNoPlaylist()
     }
-    const [cats, streams] = await Promise.all([
-      fetchXtreamVodCategories(credentials),
-      fetchXtreamVodStreams(credentials),
-    ])
-    return {
-      categories: cats,
-      streams,
-      sourceType: 'xtream',
-      loadedAt: Date.now(),
+    try {
+      const [cats, streams] = await Promise.all([
+        fetchXtreamVodCategories(credentials),
+        fetchXtreamVodStreams(credentials),
+      ])
+      console.info('[MoviesCatalog] Xtream direct OK — cats:', cats.length, 'streams:', streams.length)
+      return {
+        categories: cats,
+        streams,
+        sourceType: 'xtream',
+        loadedAt: Date.now(),
+      }
+    } catch (err) {
+      console.error('[MoviesCatalog] Xtream direct FAILED:', err)
+      throw err
     }
   }
 

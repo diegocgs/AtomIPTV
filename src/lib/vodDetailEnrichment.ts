@@ -2,7 +2,7 @@ import type { MoviesCatalogSourceKind } from '@/features/catalog/types/moviesCat
 import type { SeriesCatalogSourceKind } from '@/features/catalog/types/seriesCatalog'
 import { playlistServiceGetActivePlaylist } from '@/features/playlists/services/playlistService'
 import type { PlaylistEntity } from '@/features/playlists/types/playlist'
-import { getXtreamCredentialsForApp } from '@/lib/playlistsStorage'
+import { getXtreamCredentialsForApp, getXtreamCredentialsForAppAsync } from '@/lib/playlistsStorage'
 import {
   fetchXtreamSeriesInfo,
   fetchXtreamVodInfo,
@@ -72,6 +72,57 @@ function buildMoviesVodInfoHybridUrl(active: PlaylistEntity & { type: 'xtream' }
     vodId: String(vodId),
   })
   return `${origin}/api/vod/movies/info?${qp.toString()}`
+}
+
+/**
+ * Variante genérica que usa credenciais derivadas (para playlists M3U shortlink).
+ */
+function buildMoviesVodInfoHybridUrlFromCreds(
+  creds: { serverUrl: string; username: string; password: string },
+  playlistId: string,
+  playlistName: string,
+  vodId: number,
+): string | null {
+  const origin = hybridApiOrigin()
+  if (!origin) return null
+  const baseUrl = creds.serverUrl.trim()
+  const username = creds.username.trim()
+  const password = creds.password
+  if (!baseUrl || !username || !password) return null
+  const qp = new URLSearchParams({
+    playlistId,
+    playlistName,
+    sourceType: 'xtream',
+    baseUrl,
+    username,
+    password,
+    vodId: String(vodId),
+  })
+  return `${origin}/api/vod/movies/info?${qp.toString()}`
+}
+
+function buildSeriesInfoHybridUrlFromCreds(
+  creds: { serverUrl: string; username: string; password: string },
+  playlistId: string,
+  playlistName: string,
+  seriesId: number,
+): string | null {
+  const origin = hybridApiOrigin()
+  if (!origin) return null
+  const baseUrl = creds.serverUrl.trim()
+  const username = creds.username.trim()
+  const password = creds.password
+  if (!baseUrl || !username || !password) return null
+  const qp = new URLSearchParams({
+    playlistId,
+    playlistName,
+    sourceType: 'xtream',
+    baseUrl,
+    username,
+    password,
+    seriesId: String(seriesId),
+  })
+  return `${origin}/api/vod/series/info?${qp.toString()}`
 }
 
 function buildSeriesInfoHybridUrl(active: PlaylistEntity & { type: 'xtream' }, seriesId: number): string | null {
@@ -168,7 +219,17 @@ export async function enrichXtreamMovieDetail(
   sourceType: MoviesCatalogSourceKind,
   signal?: AbortSignal,
 ): Promise<XtreamVodInfoDetail | null> {
-  if (sourceType !== 'xtream') return null
+  // Permitir tanto 'xtream' quanto 'm3u' — playlists M3U derivadas de Xtream
+  // têm credenciais disponíveis via getXtreamCredentialsForApp().
+  // Para shortlinks, as credenciais só ficam disponíveis via derivação assíncrona.
+  let creds = getXtreamCredentialsForApp()
+  let canDirect = Boolean(creds.serverUrl?.trim() && creds.username?.trim())
+  if (sourceType !== 'xtream' && !canDirect) {
+    // Fallback assíncrono: derivar credenciais dos stream URLs cacheados (shortlink M3U)
+    creds = await getXtreamCredentialsForAppAsync()
+    canDirect = Boolean(creds.serverUrl?.trim() && creds.username?.trim())
+    if (!canDirect) return null
+  }
 
   const cacheKey = activePlaylistCacheKey(vodId)
   if (cacheKey) {
@@ -178,10 +239,14 @@ export async function enrichXtreamMovieDetail(
 
   try {
     const active = playlistServiceGetActivePlaylist()
-    const hybridUrl =
-      active?.type === 'xtream' ? buildMoviesVodInfoHybridUrl(active, vodId) : null
-    const creds = getXtreamCredentialsForApp()
-    const canDirect = Boolean(creds.serverUrl?.trim() && creds.username?.trim())
+
+    // Construir URL híbrida — para playlists xtream nativas OU M3U com credenciais derivadas
+    let hybridUrl: string | null = null
+    if (active?.type === 'xtream') {
+      hybridUrl = buildMoviesVodInfoHybridUrl(active, vodId)
+    } else if (canDirect) {
+      hybridUrl = buildMoviesVodInfoHybridUrlFromCreds(creds, active?.id ?? '', active?.name ?? '', vodId)
+    }
 
     const hybridP: Promise<XtreamVodInfoDetail | null> = hybridUrl
       ? fetch(hybridUrl, { method: 'GET', signal })
@@ -246,14 +311,23 @@ export async function enrichXtreamSeriesDetail(
   sourceType: SeriesCatalogSourceKind,
   signal?: AbortSignal,
 ): Promise<SeriesDetailMeta | null> {
-  if (sourceType !== 'xtream') return null
+  let creds = getXtreamCredentialsForApp()
+  let canDirect = Boolean(creds.serverUrl?.trim() && creds.username?.trim())
+  if (sourceType !== 'xtream' && !canDirect) {
+    creds = await getXtreamCredentialsForAppAsync()
+    canDirect = Boolean(creds.serverUrl?.trim() && creds.username?.trim())
+    if (!canDirect) return null
+  }
 
   try {
     const active = playlistServiceGetActivePlaylist()
-    const hybridUrl =
-      active?.type === 'xtream' ? buildSeriesInfoHybridUrl(active, seriesId) : null
-    const creds = getXtreamCredentialsForApp()
-    const canDirect = Boolean(creds.serverUrl?.trim() && creds.username?.trim())
+
+    let hybridUrl: string | null = null
+    if (active?.type === 'xtream') {
+      hybridUrl = buildSeriesInfoHybridUrl(active, seriesId)
+    } else if (canDirect) {
+      hybridUrl = buildSeriesInfoHybridUrlFromCreds(creds, active?.id ?? '', active?.name ?? '', seriesId)
+    }
 
     const hybridP: Promise<SeriesDetailMeta | null> = hybridUrl
       ? fetch(hybridUrl, { method: 'GET', signal })

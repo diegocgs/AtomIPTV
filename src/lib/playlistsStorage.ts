@@ -233,6 +233,40 @@ export function getActivePlaylistDisplayName(): string {
   return active?.displayName ?? getXtreamCredentialsForApp().name
 }
 
+/**
+ * Versão assíncrona de `getXtreamCredentialsForApp()`.
+ * Quando a playlist M3U é um shortlink (sem credenciais na URL), tenta derivar
+ * credenciais a partir dos URLs de stream cacheados no IndexedDB ou, como
+ * fallback final, descarregando o M3U.
+ */
+export async function getXtreamCredentialsForAppAsync(): Promise<XtreamCredentials> {
+  const sync = getXtreamCredentialsForApp()
+  if (sync.serverUrl && sync.username) return sync
+
+  // Fallback assíncrono para playlists M3U shortlink
+  const state = loadPlaylistsState()
+  if (!state.activeId) return NO_XTREAM_CREDENTIALS
+  const active = state.playlists.find((p) => p.id === state.activeId)
+  if (!active || active.kind !== 'm3u') return NO_XTREAM_CREDENTIALS
+
+  // 1) Tentar do cache IndexedDB (stream URLs já descarregados)
+  const fromCache = await tryDeriveXtreamCredentialsFromM3uCacheAsync(
+    active.id,
+    active.m3uUrl,
+    active.displayName,
+  )
+  if (fromCache) return fromCache
+
+  // 2) Fallback: descarregar o M3U e varrer as primeiras linhas
+  const fromFetch = await tryDeriveXtreamCredentialsFromM3uFetchAsync(
+    active.m3uUrl,
+    active.displayName,
+  )
+  if (fromFetch) return fromFetch
+
+  return NO_XTREAM_CREDENTIALS
+}
+
 export function shouldUseXtreamApiForActivePlaylist(): boolean {
   const c = getXtreamCredentialsForApp()
   return Boolean(c.serverUrl && c.username && c.password)

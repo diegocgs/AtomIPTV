@@ -881,6 +881,17 @@ const xtreamFetch = async (url: string): Promise<Response> => {
         /* proxy remoto */
       }
     }
+    // Fallback DEV: usar /__iptv_dev/fetch (middleware Vite inline que faz fetch no Node)
+    // quando /api/proxy não está disponível (servidor local 8787 não está rodando).
+    try {
+      const devR = await fetch(`/__iptv_dev/fetch?url=${encodeURIComponent(url)}`, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      if (devR.ok) return devR;
+    } catch {
+      /* cair para proxy Lambda */
+    }
   }
 
   /**
@@ -893,7 +904,9 @@ const xtreamFetch = async (url: string): Promise<Response> => {
     try {
       const r = await fetch(url, { method: 'GET', redirect: 'follow' });
       if (r.ok) return r;
-    } catch {
+      console.warn('[xtreamFetch] Tizen direct failed:', r.status, url.slice(0, 120));
+    } catch (e) {
+      console.warn('[xtreamFetch] Tizen direct error:', e, url.slice(0, 120));
       /* cair para proxy Lambda */
     }
   }

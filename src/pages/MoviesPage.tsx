@@ -289,7 +289,7 @@ export default function MoviesPage() {
 
   /* eslint-disable react-hooks/set-state-in-effect -- VOD detail fetch state intentionally resets when the selected asset changes */
   useEffect(() => {
-    if (!detail || vodSourceType !== 'xtream') {
+    if (!detail) {
       setVodApiDetail(null)
       setVodDetailLoading(false)
       return

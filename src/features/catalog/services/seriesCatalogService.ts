@@ -114,17 +114,24 @@ async function resolveSeriesCatalogInClient(): Promise<SeriesCatalogResult> {
   if (shouldUseXtreamApiForActivePlaylist()) {
     const credentials = getXtreamCredentialsForApp()
     if (!credentials.serverUrl?.trim() || !credentials.username?.trim()) {
+      console.warn('[SeriesCatalog] Xtream credentials empty, returning empty')
       return emptyNoPlaylist()
     }
-    const [cats, rows] = await Promise.all([
-      fetchXtreamSeriesCategories(credentials),
-      fetchXtreamSeries(credentials),
-    ])
-    return {
-      categories: cats,
-      series: rows,
-      sourceType: 'xtream',
-      loadedAt: Date.now(),
+    try {
+      const [cats, rows] = await Promise.all([
+        fetchXtreamSeriesCategories(credentials),
+        fetchXtreamSeries(credentials),
+      ])
+      console.info('[SeriesCatalog] Xtream direct OK — cats:', cats.length, 'series:', rows.length)
+      return {
+        categories: cats,
+        series: rows,
+        sourceType: 'xtream',
+        loadedAt: Date.now(),
+      }
+    } catch (err) {
+      console.error('[SeriesCatalog] Xtream direct FAILED:', err)
+      throw err
     }
   }
 
