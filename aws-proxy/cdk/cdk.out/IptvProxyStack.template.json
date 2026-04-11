@@ -53,7 +53,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-ca-central-1"
      },
-     "S3Key": "45de6db47b9e8f24f8813deb806a7cc1ef9014f30f79338f2f035616595141d5.zip"
+     "S3Key": "6a31109390aab59a0714fd153f0c48ec2c72eecfc733e82e075473b3d9fcb3cd.zip"
     },
     "Description": "API IPTV Samsung — catálogo Live/VOD, proxy Xtream (Function URL)",
     "Environment": {
@@ -84,7 +84,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "IptvProxyStack/IptvProxyFn/Resource",
-    "aws:asset:path": "asset.45de6db47b9e8f24f8813deb806a7cc1ef9014f30f79338f2f035616595141d5",
+    "aws:asset:path": "asset.6a31109390aab59a0714fd153f0c48ec2c72eecfc733e82e075473b3d9fcb3cd",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }

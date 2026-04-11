@@ -1,0 +1,51 @@
+{
+  "name": "iptv-samsung",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:shell": "vite --port 5173 --strictPort --host",
+    "dev:server": "node server/index.mjs",
+    "dev:hybrid": "concurrently -k \"npm:dev:server\" \"npm:dev\"",
+    "dev:server:lan": "HYBRID_API_HOST=0.0.0.0 HYBRID_API_PORT=8787 node server/index.mjs",
+    "build": "tsc -b && vite build",
+    "build:hosted": "npm run build",
+    "build:tizen": "node scripts/tizen-shell-prepare.mjs",
+    "build:tizen:lan": "HOSTED_APP_URL=http://192.168.0.149:4173 npm run build:tizen",
+    "package:tizen": "npm run build:tizen",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "hls.js": "^1.6.15",
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.2",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-legacy": "^8.0.1",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vite": "^8.0.1"
+  }
+}
